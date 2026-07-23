@@ -65,8 +65,8 @@ export function Sidebar() {
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-14 items-center gap-3 px-5 border-b border-surface-100">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-white font-bold text-sm shadow-sm">
-              CM
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-soft overflow-hidden">
+              <img src="/CasaMilksLogo.jpeg" alt="Casa Milks" className="w-8 h-8 object-contain" />
             </div>
             <div>
               <h1 className="text-sm font-semibold text-surface-900">Casa Milks</h1>

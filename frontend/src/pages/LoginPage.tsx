@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { UtensilsCrossed, ChefHat, Coffee, Sandwich } from 'lucide-react';
+import { ChefHat, Coffee, Sandwich } from 'lucide-react';
 
 export default function LoginPage() {
   const { user, login, loading } = useAuth();
@@ -78,8 +78,8 @@ export default function LoginPage() {
 
         {/* Content */}
         <div className="relative z-10 text-center px-12">
-          <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-brand-500 to-orange-600 shadow-2xl shadow-brand-500/30 ring-1 ring-white/10">
-            <UtensilsCrossed size={48} className="text-white" />
+            <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-3xl bg-white shadow-2xl shadow-brand-500/20 ring-1 ring-white/20 overflow-hidden">
+            <img src="/CasaMilksLogo.jpeg" alt="Casa Milks" className="w-20 h-20 object-contain" />
           </div>
           <h1 className="text-4xl font-bold text-white mb-3 tracking-tight">Casa Milks</h1>
           <p className="text-lg text-gray-400 font-light max-w-sm mx-auto leading-relaxed">
@@ -109,8 +109,8 @@ export default function LoginPage() {
         <div className="w-full max-w-sm relative">
           {/* Mobile logo */}
           <div className="lg:hidden text-center mb-10">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 shadow-lg shadow-brand-500/20">
-              <UtensilsCrossed size={32} className="text-white" />
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-lg shadow-gray-200/50 border border-gray-100 overflow-hidden">
+              <img src="/CasaMilksLogo.jpeg" alt="Casa Milks" className="w-12 h-12 object-contain" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Casa Milks</h1>
             <p className="text-sm text-gray-400 mt-1">Sistema de Pedidos y Facturación</p>
