@@ -34,4 +34,4 @@ RUN npm install -g tsx
 
 EXPOSE 3000
 
-CMD npx prisma db push --accept-data-loss && npx tsx prisma/seed.ts && node dist/index.js
+CMD npx prisma db push --accept-data-loss 2>&1 && npx tsx prisma/seed.ts 2>&1 && node dist/index.js 2>&1
