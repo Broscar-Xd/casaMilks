@@ -3,7 +3,7 @@ import { useBranch } from '@/contexts/BranchContext';
 import { api } from '@/services/api';
 import { formatCurrency, getPaymentMethodLabel, getOrderStatusLabel } from '@/lib/utils';
 import toast from 'react-hot-toast';
-import { Search, Loader2, Eye, X, Receipt, Filter } from 'lucide-react';
+import { Search, Loader2, Eye, X, Filter } from 'lucide-react';
 import type { Order, ApiResponse, PaymentMethod } from '@/types';
 
 type PaymentBreakdown = { method: string; amount: number; reference: string | null }[];
@@ -11,31 +11,48 @@ type PaymentBreakdown = { method: string; amount: number; reference: string | nu
 export default function OrdersHistoryPage() {
   const { currentBranch } = useBranch();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchId, setSearchId] = useState('');
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 7);
-    return d.toISOString().split('T')[0];
-  });
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
+  // Carga todos los pedidos al iniciar
   const fetchOrders = useCallback(async () => {
     if (!currentBranch) return;
     setLoading(true);
     try {
-      const res = await api.get<ApiResponse<Order[]>>(
-        `/orders?branchId=${currentBranch.id}&dateFrom=${dateFrom}&dateTo=${dateTo}`
-      );
-      if (res.success && res.data) setOrders(res.data);
+      const res = await api.get<ApiResponse<Order[]>>(`/orders?branchId=${currentBranch.id}`);
+      if (res.success && res.data) {
+        setAllOrders(res.data);
+        setOrders(res.data);
+      }
     } catch {
       toast.error('Error al cargar pedidos');
     } finally {
       setLoading(false);
     }
-  }, [currentBranch, dateFrom, dateTo]);
+  }, [currentBranch]);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  // Filtra por fecha cuando el usuario hace clic en Buscar
+  const applyFilters = async () => {
+    if (!currentBranch) return;
+    setLoading(true);
+    try {
+      let url = `/orders?branchId=${currentBranch.id}`;
+      if (dateFrom) url += `&dateFrom=${dateFrom}`;
+      if (dateTo) url += `&dateTo=${dateTo}`;
+      const res = await api.get<ApiResponse<Order[]>>(url);
+      if (res.success && res.data) setOrders(res.data);
+    } catch {
+      toast.error('Error al filtrar pedidos');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const viewDetail = async (orderId: string) => {
     try {
@@ -83,11 +100,11 @@ export default function OrdersHistoryPage() {
       <div className="card p-4 mb-4">
         <div className="flex items-end gap-3 flex-wrap">
           <div>
-            <label className="label text-xs">Desde</label>
+            <label className="label text-xs">Desde (opcional)</label>
             <input type="date" className="input py-2 text-sm" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           </div>
           <div>
-            <label className="label text-xs">Hasta</label>
+            <label className="label text-xs">Hasta (opcional)</label>
             <input type="date" className="input py-2 text-sm" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           </div>
           <input
@@ -97,10 +114,15 @@ export default function OrdersHistoryPage() {
             value={searchId}
             onChange={(e) => setSearchId(e.target.value)}
           />
-          <button onClick={fetchOrders} disabled={loading} className="btn-primary py-2">
+          <button onClick={applyFilters} disabled={loading} className="btn-primary py-2">
             {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-            Buscar
+            Filtrar
           </button>
+          {(dateFrom || dateTo || searchId) && (
+            <button onClick={fetchOrders} className="btn-secondary py-2">
+              Limpiar filtros
+            </button>
+          )}
         </div>
       </div>
 
