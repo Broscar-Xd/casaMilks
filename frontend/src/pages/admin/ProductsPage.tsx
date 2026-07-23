@@ -3,28 +3,33 @@ import { api } from '@/services/api';
 import { useBranch } from '@/contexts/BranchContext';
 import { formatCurrency } from '@/lib/utils';
 import toast from 'react-hot-toast';
-import { Plus, Pencil, Loader2, Search, ChefHat } from 'lucide-react';
-import type { Product, Category, ApiResponse } from '@/types';
+import { Plus, Pencil, Loader2, Search, ChefHat, Trash2, PlusCircle } from 'lucide-react';
+import type { Product, Category, Ingredient, ApiResponse } from '@/types';
 
 export default function ProductsPage() {
   const { currentBranch } = useBranch();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name: '', description: '', price: 0, categoryId: '', branchId: '', requiresPreparation: true });
+  const [productRecipes, setProductRecipes] = useState<Array<{ ingredientId: string; ingredientName: string; quantity: number }>>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [prodRes, catRes] = await Promise.all([
+        const [prodRes, catRes, ingRes] = await Promise.all([
           api.get<ApiResponse<Product[]>>('/products/all'),
           api.get<ApiResponse<Category[]>>('/categories/all'),
+          api.get<ApiResponse<Ingredient[]>>('/ingredients'),
         ]);
         if (prodRes.success && prodRes.data) setProducts(prodRes.data);
         if (catRes.success && catRes.data) setCategories(catRes.data);
+        if (ingRes.success && ingRes.data) setIngredients(ingRes.data);
       } catch {
         toast.error('Error al cargar datos');
       } finally {
@@ -37,10 +42,11 @@ export default function ProductsPage() {
   const openCreate = () => {
     setEditing(null);
     setForm({ name: '', description: '', price: 0, categoryId: categories[0]?.id || '', branchId: currentBranch?.id || '', requiresPreparation: true });
+    setProductRecipes([]);
     setShowModal(true);
   };
 
-  const openEdit = (product: Product) => {
+  const openEdit = async (product: Product) => {
     setEditing(product);
     setForm({
       name: product.name,
@@ -50,7 +56,47 @@ export default function ProductsPage() {
       branchId: product.branchId,
       requiresPreparation: product.requiresPreparation ?? true,
     });
+
+    // Cargar receta existente
+    try {
+      const res = await api.get<ApiResponse<Array<{ id: string; ingredientId: string; quantity: number; ingredient: Ingredient }>>>(`/recipes/product/${product.id}`);
+      if (res.success && res.data) {
+        setProductRecipes(
+          res.data.map((r) => ({
+            ingredientId: r.ingredientId,
+            ingredientName: r.ingredient?.name || '',
+            quantity: Number(r.quantity),
+          }))
+        );
+      }
+    } catch {
+      setProductRecipes([]);
+    }
+
     setShowModal(true);
+  };
+
+  const addRecipeRow = () => {
+    const first = ingredients[0];
+    if (!first) return;
+    setProductRecipes((prev) => [...prev, { ingredientId: first.id, ingredientName: first.name, quantity: 1 }]);
+  };
+
+  const updateRecipe = (index: number, field: string, value: string | number) => {
+    setProductRecipes((prev) => {
+      const next = [...prev];
+      if (field === 'ingredientId') {
+        const ing = ingredients.find((i) => i.id === value);
+        next[index] = { ...next[index], ingredientId: value as string, ingredientName: ing?.name || '' };
+      } else {
+        next[index] = { ...next[index], quantity: value as number };
+      }
+      return next;
+    });
+  };
+
+  const removeRecipe = (index: number) => {
+    setProductRecipes((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
@@ -59,20 +105,45 @@ export default function ProductsPage() {
       return;
     }
 
+    setSaving(true);
+
     try {
+      let productId: string;
+
       if (editing) {
         await api.patch(`/products/${editing.id}`, form);
-        toast.success('Producto actualizado');
+        productId = editing.id;
       } else {
-        await api.post('/products', form);
-        toast.success('Producto creado');
+        const res = await api.post<ApiResponse<Product>>('/products', form);
+        if (!res.success || !res.data) throw new Error('Error al crear producto');
+        productId = res.data.id;
       }
+
+      // Guardar receta si hay insumos
+      if (productRecipes.length > 0) {
+        try {
+          await api.post('/recipes/bulk', {
+            productId,
+            items: productRecipes.map((r) => ({
+              ingredientId: r.ingredientId,
+              quantity: r.quantity,
+            })),
+          });
+        } catch {
+          // Si falla la receta no bloqueamos, pero avisamos
+          toast.error('Producto guardado pero hubo un error al guardar la receta');
+        }
+      }
+
+      toast.success(editing ? 'Producto actualizado' : 'Producto creado');
       setShowModal(false);
-      // Recargar
+
       const res = await api.get<ApiResponse<Product[]>>('/products/all');
       if (res.success && res.data) setProducts(res.data);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -200,10 +271,50 @@ export default function ProductsPage() {
                   </label>
                 </div>
               </div>
+              <div className="border-t border-gray-100 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-sm font-semibold text-gray-700">Insumos (receta)</label>
+                  <button type="button" onClick={addRecipeRow} className="btn-ghost text-xs py-1 px-2">
+                    <PlusCircle size={14} /> Agregar insumo
+                  </button>
+                </div>
+                {productRecipes.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-2">Define qué insumos consume este producto y en qué cantidad</p>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {productRecipes.map((recipe, idx) => (
+                      <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-lg p-2">
+                        <select
+                          className="input text-sm flex-1 py-1.5"
+                          value={recipe.ingredientId}
+                          onChange={(e) => updateRecipe(idx, 'ingredientId', e.target.value)}
+                        >
+                          {ingredients.map((ing) => (
+                            <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          className="input w-20 text-sm py-1.5 text-center"
+                          value={recipe.quantity}
+                          onChange={(e) => updateRecipe(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                        />
+                        <button onClick={() => removeRecipe(idx)} className="text-red-400 hover:text-red-600 p-1">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex gap-3 border-t border-surface-100 px-6 py-4">
               <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">Cancelar</button>
-              <button onClick={handleSubmit} className="btn-primary flex-1">{editing ? 'Actualizar' : 'Crear'}</button>
+              <button onClick={handleSubmit} disabled={saving} className="btn-primary flex-1">
+                {saving ? 'Guardando...' : editing ? 'Actualizar' : 'Crear'}
+              </button>
             </div>
           </div>
         </div>
