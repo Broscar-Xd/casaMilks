@@ -82,9 +82,7 @@ export default function LoginPage() {
             <img src="/CasaMilksLogo.jpeg" alt="Casa Milks" className="w-20 h-20 object-contain" />
           </div>
           <h1 className="text-4xl font-bold text-white mb-3 tracking-tight">Casa Milks</h1>
-          <p className="text-lg text-gray-400 font-light max-w-sm mx-auto leading-relaxed">
-            Sistema de Pedidos y Facturación para tu restaurante
-          </p>
+          
 
           {/* Brand accent line */}
           <div className="mt-8 flex items-center justify-center gap-3">
