@@ -1,0 +1,40 @@
+CASA MILKS
+REQUERIMIENTOS · SISTEMA DE PEDIDOS Y FACTURACIÓN
+Latacunga, Ecuador  ·  2026
+A continuación se detalla todo lo que Casa Milks requiere del sistema de gestión de pedidos y facturación. Solicitamos cotización por el total del sistema con todas las funcionalidades listadas.
+01 — SISTEMA DE PEDIDOS Y COCINA
+–	Toma de pedido desde dispositivo (tablet / computadora)
+–	Pantalla de pedidos en cocina (KDS) conectada en tiempo real
+–	Almacenamiento en la nube con acceso desde cualquier dispositivo
+–	Registro de cada pedido con fecha y hora
+02 — REPORTES Y CONTROL
+–	Reporte de ventas por producto (unidades de cada sándwich, no solo total)
+–	Reporte de ventas por franja horaria
+–	Ticket promedio y número de transacciones, automáticos
+–	Cierre diario con resumen de ingresos
+–	Exportación de todos los reportes a Excel
+03 — FORMAS DE PAGO Y CAJA
+–	Registro de forma de pago por venta: efectivo, transferencia y tarjeta
+–	Reporte de cierre diario desglosado por forma de pago
+–	Campo de forma de pago obligatorio (la venta no cierra sin seleccionarlo)
+–	Integración con Deuna y PanaPay
+04 — USUARIOS Y PERMISOS
+–	Usuarios con permisos por rol
+–	Personal: acceso solo a tomar pedidos (sin reportes ni configuración)
+–	Administrador: acceso a reportes, configuración y caja
+05 — INVENTARIO
+–	Inventario con descuento automático de insumos por receta al momento de vender
+–	Alerta de stock bajo
+06 — NOTA DE VENTA ELECTRÓNICA — RIMPE
+Casa Milks es contribuyente RIMPE Negocio Popular: emite nota de venta y no cobra IVA.
+–	Emisión de nota de venta electrónica con leyenda “Contribuyente RIMPE Negocio Popular”
+–	Todos los campos exigidos por el SRI (RUC, autorización, secuencial, dirección)
+–	Sin línea de IVA
+–	Diseño impreso del comprobante con la marca Casa Milks
+–	Impresión automática del recibo al cerrar la venta
+–	Diseño editable por local
+–	Capacidad de migrar de nota de venta a factura electrónica si cambia el régimen
+07 — ESCALABILIDAD — MULTI-LOCAL
+–	Soporte multi-local desde un mismo panel, con vista por local y consolidada
+–	Configuración fiscal independiente por local (RUC, firma y secuencial propios)
+Casa Milks — Latacunga, Ecuador

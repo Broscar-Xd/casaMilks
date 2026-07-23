@@ -1,0 +1,400 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Sucursales o locales físicos de Casa Milks. Cada local opera
+/// con su propia configuración fiscal y secuencial de comprobantes.
+model Branch {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  address   String
+  phone     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  fiscalConfig        BranchFiscalConfig?
+  receiptSequences    ReceiptSequence[]
+  users               User[]
+  products            Product[]
+  orders              Order[]
+  tables              Table[]
+  inventoryItems      InventoryItem[]
+  inventoryMovements  InventoryMovement[]
+  dailyCloses         DailyClose[]
+  electronicReceipts  ElectronicReceipt[]
+
+  @@map("branches")
+}
+
+/// Configuración fiscal SRI por local. Cada local emite su propia
+/// nota de venta con RUC, secuencial y firma independientes.
+model BranchFiscalConfig {
+  id                  String @id @default(uuid())
+  branchId            String @unique @map("branch_id")
+  ruc                 String
+  businessName        String @map("business_name")
+  tradeName           String @map("trade_name")
+  receiptAuthorization String @map("receipt_authorization")
+  currentSequential   Int    @default(1) @map("current_sequential")
+  digitalSignature    String? @map("digital_signature")
+  rimpeLegend         String @default("Contribuyente RIMPE Negocio Popular") @map("rimpe_legend")
+  address             String
+  phone               String?
+  email               String?
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@map("branch_fiscal_configs")
+}
+
+/// Secuenciales de comprobantes por año fiscal y local.
+/// Permite reiniciar el secuencial cada año sin perder trazabilidad.
+model ReceiptSequence {
+  id        String   @id @default(uuid())
+  branchId  String   @map("branch_id")
+  year      Int
+  type      String   @default("NOTA_VENTA")
+  lastUsed  Int      @default(0) @map("last_used")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, year, type])
+  @@map("receipt_sequences")
+}
+
+/// Mesas del local. Cada mesa puede tener una cuenta activa (order).
+/// El estado se actualiza automáticamente según el flujo del negocio:
+/// FREE → OCCUPIED → PENDING_PAYMENT → FREE
+model Table {
+  id        String   @id @default(uuid())
+  branchId  String   @map("branch_id")
+  name      String
+  status    String   @default("FREE")
+  // Table status: FREE | OCCUPIED | PENDING_PAYMENT
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  branch Branch @relation(fields: [branchId], references: [id])
+  orders Order[]
+
+  @@unique([branchId, name])
+  @@index([branchId])
+  @@map("tables")
+}
+
+/// Usuarios del sistema. Dos roles fijos: ADMIN y STAFF.
+model User {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  email     String
+  password  String
+  role      Role     @default(STAFF)
+  active    Boolean  @default(true)
+  branchId  String?  @map("branch_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  branch  Branch?  @relation(fields: [branchId], references: [id])
+  orders  Order[]
+  closes  DailyClose[]
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+/// Categorías de productos (ej: Clásicos, Especiales, Bebidas).
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  products Product[]
+
+  @@map("categories")
+}
+
+/// Productos del menú. Cada producto puede tener una receta que
+/// define qué insumos y cantidades se descuentan al venderlo.
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  price       Decimal
+  categoryId  String   @map("category_id")
+  branchId    String   @map("branch_id")
+  image       String?
+  active      Boolean  @default(true)
+  requiresPreparation Boolean @default(true) @map("requires_preparation")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  category    Category         @relation(fields: [categoryId], references: [id])
+  branch      Branch           @relation(fields: [branchId], references: [id])
+  recipes     Recipe[]
+  orderItems  OrderItem[]
+  kitchenSendItems  KitchenSendItem[]
+
+  @@index([categoryId])
+  @@index([branchId])
+  @@map("products")
+}
+
+/// Insumos o ingredientes. Representan el inventario real.
+/// Ej: "Pan artesanal", "Lechuga", "Queso mozzarella".
+model Ingredient {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  unit      String   @default("unidad")
+  minStock  Decimal  @default(0) @map("min_stock")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  recipes             Recipe[]
+  inventoryItems      InventoryItem[]
+  inventoryMovements  InventoryMovement[]
+
+  @@map("ingredients")
+}
+
+/// Stock actual de cada insumo por local.
+model InventoryItem {
+  id           String   @id @default(uuid())
+  ingredientId String   @map("ingredient_id")
+  branchId     String   @map("branch_id")
+  quantity     Decimal  @default(0)
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+  branch     Branch     @relation(fields: [branchId], references: [id])
+
+  @@unique([ingredientId, branchId])
+  @@index([branchId])
+  @@map("inventory_items")
+}
+
+/// Receta: define qué insumos y qué cantidad se necesitan
+/// para preparar UNA unidad de un producto.
+model Recipe {
+  id           String  @id @default(uuid())
+  productId    String  @map("product_id")
+  ingredientId String  @map("ingredient_id")
+  quantity     Decimal
+
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@unique([productId, ingredientId])
+  @@index([productId])
+  @@index([ingredientId])
+  @@map("recipes")
+}
+
+/// Movimientos de inventario. Registra cada entrada o salida
+/// de insumos para mantener trazabilidad completa.
+model InventoryMovement {
+  id           String   @id @default(uuid())
+  ingredientId String   @map("ingredient_id")
+  branchId     String   @map("branch_id")
+  type         MovementType
+  quantity     Decimal
+  reference    String?  @map("reference")
+  orderId      String?  @map("order_id")
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+  branch     Branch     @relation(fields: [branchId], references: [id])
+  order      Order?     @relation(fields: [orderId], references: [id])
+
+  @@index([branchId])
+  @@index([ingredientId])
+  @@index([orderId])
+  @@map("inventory_movements")
+}
+
+enum MovementType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+enum OrderStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  DEUNA
+  PANAPAY
+}
+
+/// Pedidos. Un pedido pertenece a un local, fue tomado por un usuario
+/// y está asociado a una mesa. Los pedidos permanecen OPEN hasta que
+/// son cobrados, momento en el que pasan a CLOSED.
+model Order {
+  id           String      @id @default(uuid())
+  branchId     String      @map("branch_id")
+  tableId      String      @map("table_id")
+  userId       String      @map("user_id")
+  customerName String?     @map("customer_name")
+  status       OrderStatus @default(OPEN)
+  total        Decimal
+  notes        String?
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  branch             Branch              @relation(fields: [branchId], references: [id])
+  table              Table               @relation(fields: [tableId], references: [id])
+  user               User                @relation(fields: [userId], references: [id])
+  items              OrderItem[]
+  payments           Payment[]
+  kitchenSends       KitchenSend[]
+  inventoryMovements InventoryMovement[]
+  electronicReceipt  ElectronicReceipt?
+
+  @@index([branchId])
+  @@index([tableId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+/// Líneas de detalle del pedido. Cada item registra el producto,
+/// cantidad, precio unitario y subtotal en el momento de la venta
+/// (histórico, no se actualiza si cambia el precio del producto).
+/// sent_to_kitchen indica si ya fue enviado a cocina (para evitar reenvíos).
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String  @map("order_id")
+  productId String  @map("product_id")
+  quantity  Int
+  unitPrice Decimal @map("unit_price")
+  subtotal  Decimal
+  sentToKitchen Boolean @default(false) @map("sent_to_kitchen")
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+/// Envíos individuales a cocina. Cada vez que se agregan productos
+/// nuevos a una orden, se crea un KitchenSend con solo esos items.
+/// La cocina ve estos registros, no los items de orden directamente.
+model KitchenSend {
+  id        String   @id @default(uuid())
+  orderId   String   @map("order_id")
+  status    String   @default("PENDING")
+  // KitchenSend status: PENDING | READY
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  order Order              @relation(fields: [orderId], references: [id])
+  items KitchenSendItem[]
+
+  @@index([orderId])
+  @@index([status])
+  @@map("kitchen_sends")
+}
+
+/// Items específicos de cada envío a cocina.
+model KitchenSendItem {
+  id        String @id @default(uuid())
+  sendId    String @map("send_id")
+  productId String @map("product_id")
+  quantity  Int
+
+  send    KitchenSend @relation(fields: [sendId], references: [id], onDelete: Cascade)
+  product Product     @relation(fields: [productId], references: [id])
+
+  @@index([sendId])
+  @@map("kitchen_send_items")
+}
+
+/// Pagos asociados a un pedido. Un pedido puede tener múltiples
+/// formas de pago (ej: parte en efectivo, parte en tarjeta).
+/// reference_number almacena el comprobante para CARD/TRANSFER/DEUNA/PANAPAY.
+model Payment {
+  id              String        @id @default(uuid())
+  orderId         String        @map("order_id")
+  method          PaymentMethod
+  amount          Decimal
+  referenceNumber String?       @map("reference_number")
+  cashReceived    Decimal?      @map("cash_received")
+  cashChange      Decimal?      @map("cash_change")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("payments")
+}
+
+/// Comprobantes electrónicos emitidos (nota de venta RIMPE).
+model ElectronicReceipt {
+  id            String   @id @default(uuid())
+  orderId       String   @unique @map("order_id")
+  branchId      String   @map("branch_id")
+  sequential    Int      @map("sequential")
+  authorization String   @map("authorization")
+  xmlContent    String?  @map("xml_content")
+  pdfUrl        String?  @map("pdf_url")
+  status        String   @default("EMITTED")
+  // Receipt status: EMITTED | CANCELLED
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  order  Order  @relation(fields: [orderId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([branchId, sequential])
+  @@index([branchId])
+  @@map("electronic_receipts")
+}
+
+/// Cierres de caja diarios por local. Incluye el desglose por
+/// forma de pago, total de ingresos, ticket promedio, etc.
+model DailyClose {
+  id                  String   @id @default(uuid())
+  branchId            String   @map("branch_id")
+  userId              String   @map("user_id")
+  closeDate           DateTime @map("close_date")
+  totalSales          Decimal  @map("total_sales")
+  totalTransactions   Int      @map("total_transactions")
+  averageTicket       Decimal  @map("average_ticket")
+  cashTotal           Decimal  @map("cash_total")
+  cardTotal           Decimal  @map("card_total")
+  transferTotal       Decimal  @map("transfer_total")
+  deunaTotal          Decimal  @map("deuna_total")
+  panapayTotal        Decimal  @map("panapay_total")
+  closedAt            DateTime? @map("closed_at")
+  notes               String?
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  branch Branch @relation(fields: [branchId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([branchId, closeDate])
+  @@index([branchId])
+  @@map("daily_closes")
+}
