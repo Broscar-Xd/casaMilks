@@ -20,10 +20,8 @@ export function formatCurrency(amount: number): string {
  */
 export function getOrderStatusColor(status: string): string {
   const colors: Record<string, string> = {
-    PENDING: 'badge-pending',
-    IN_PREPARATION: 'badge-preparation',
-    READY: 'badge-ready',
-    DELIVERED: 'badge-delivered',
+    OPEN: 'badge-pending',
+    CLOSED: 'badge-ready',
     CANCELLED: 'badge-cancelled',
   };
   return colors[status] || 'badge-pending';
@@ -34,10 +32,8 @@ export function getOrderStatusColor(status: string): string {
  */
 export function getOrderStatusLabel(status: string): string {
   const labels: Record<string, string> = {
-    PENDING: 'Pendiente',
-    IN_PREPARATION: 'En preparación',
-    READY: 'Listo',
-    DELIVERED: 'Entregado',
+    OPEN: 'Abierto',
+    CLOSED: 'Cobrado',
     CANCELLED: 'Cancelado',
   };
   return labels[status] || status;

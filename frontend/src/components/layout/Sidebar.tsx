@@ -4,7 +4,7 @@ import { useBranch } from '@/contexts/BranchContext';
 import {
   ShoppingCart, ChefHat, LayoutDashboard, Package, Layers,
   Users, ClipboardList, BarChart3, Settings, LogOut, Store,
-  Menu, X, ChevronDown, Beef, ListChecks,
+  Menu, X, ChevronDown, Beef, ListChecks, Receipt,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -24,6 +24,7 @@ const adminLinks = [
   { to: '/admin/users', label: 'Usuarios', icon: Users },
   { to: '/admin/closes', label: 'Cierre de Caja', icon: ListChecks },
   { to: '/admin/reports', label: 'Reportes', icon: BarChart3 },
+  { to: '/admin/orders', label: 'Pedidos', icon: Receipt },
   { to: '/admin/branches', label: 'Locales', icon: Store },
   { to: '/admin/tables', label: 'Mesas', icon: LayoutDashboard },
   { to: '/admin/settings', label: 'Configuración', icon: Settings },

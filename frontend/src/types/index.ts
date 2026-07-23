@@ -1,6 +1,6 @@
 export type Role = 'ADMIN' | 'STAFF';
 
-export type OrderStatus = 'PENDING' | 'IN_PREPARATION' | 'READY' | 'DELIVERED' | 'CANCELLED';
+export type OrderStatus = 'OPEN' | 'CLOSED' | 'CANCELLED';
 
 export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'DEUNA' | 'PANAPAY';
 

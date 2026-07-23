@@ -82,6 +82,10 @@ export default function POSPage() {
 
   const openExistingTable = async (table: TableItem) => {
     setSelectedTable(table);
+    setCart([]);
+    setSearch('');
+    setSelectedCategory(null);
+    fetchProducts();
     try {
       const res = await api.get<ApiResponse<Order>>(`/orders/table/${table.id}`);
       if (res.success && res.data) setCurrentOrder(res.data);

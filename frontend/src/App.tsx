@@ -14,6 +14,7 @@ import InventoryPage from '@/pages/admin/InventoryPage';
 import UsersPage from '@/pages/admin/UsersPage';
 import BranchesPage from '@/pages/admin/BranchesPage';
 import TablesAdminPage from '@/pages/admin/TablesAdminPage';
+import OrdersHistoryPage from '@/pages/admin/OrdersHistoryPage';
 import ClosesPage from '@/pages/admin/ClosesPage';
 import ReportsPage from '@/pages/admin/ReportsPage';
 import SettingsPage from '@/pages/admin/SettingsPage';
@@ -36,6 +37,7 @@ export default function App() {
               <Route path="/admin/users" element={<UsersPage />} />
               <Route path="/admin/branches" element={<BranchesPage />} />
               <Route path="/admin/tables" element={<TablesAdminPage />} />
+              <Route path="/admin/orders" element={<OrdersHistoryPage />} />
               <Route path="/admin/closes" element={<ClosesPage />} />
               <Route path="/admin/reports" element={<ReportsPage />} />
               <Route path="/admin/settings" element={<SettingsPage />} />

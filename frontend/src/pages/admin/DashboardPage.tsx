@@ -43,7 +43,7 @@ export default function DashboardPage() {
     );
   }
 
-  const activeOrders = todayOrders.filter((o) => !['DELIVERED', 'CANCELLED'].includes(o.status));
+  const activeOrders = todayOrders.filter((o) => !['CLOSED', 'CANCELLED'].includes(o.status));
   const totalToday = todayOrders
     .filter((o) => o.status !== 'CANCELLED')
     .reduce((sum, o) => sum + Number(o.total), 0);
@@ -122,9 +122,9 @@ export default function DashboardPage() {
                 <div className="text-right">
                   <p className="text-sm font-medium">{formatCurrency(Number(order.total))}</p>
                   <span className={`text-xs ${
-                    order.status === 'DELIVERED' ? 'text-green-600' : order.status === 'CANCELLED' ? 'text-red-600' : 'text-yellow-600'
+                    order.status === 'CLOSED' ? 'text-green-600' : order.status === 'CANCELLED' ? 'text-red-600' : 'text-yellow-600'
                   }`}>
-                    {order.status === 'DELIVERED' ? 'Entregado' : order.status === 'CANCELLED' ? 'Cancelado' : 'Pendiente'}
+                    {order.status === 'CLOSED' ? 'Cobrado' : order.status === 'CANCELLED' ? 'Cancelado' : 'Abierto'}
                   </span>
                 </div>
               </div>
