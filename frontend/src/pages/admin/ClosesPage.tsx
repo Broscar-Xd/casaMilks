@@ -116,7 +116,7 @@ export default function ClosesPage() {
 
       {showNew && (
         <div className="modal-overlay">
-          <div className="w-full max-w-md modal-content">
+          <div className="w-full max-w-md modal-content mx-2 sm:mx-0">
             <div className="border-b border-surface-100 px-6 py-4">
               <h2 className="text-lg font-semibold">Confirmar Cierre de Caja</h2>
               <p className="text-sm text-surface-400">Se cerrará el día {new Date().toLocaleDateString('es-EC')}</p>

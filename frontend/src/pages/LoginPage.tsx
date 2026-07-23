@@ -36,9 +36,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col lg:flex-row">
       {/* Left side — Decorative panel */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-gray-950 via-brand-950 to-gray-950 items-center justify-center">
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-gray-950 via-brand-950 to-gray-950 items-center justify-center min-h-[40vh] lg:min-h-screen">
         {/* Abstract pattern */}
         <div className="absolute inset-0 opacity-20">
           <svg className="w-full h-full" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
@@ -104,9 +104,9 @@ export default function LoginPage() {
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-brand-100/40 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-brand-100/30 to-transparent rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl" />
 
-        <div className="w-full max-w-sm relative">
+        <div className="w-full max-w-sm relative px-4">
           {/* Mobile logo */}
-          <div className="lg:hidden text-center mb-10">
+          <div className="lg:hidden text-center mb-8 mt-8">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-lg shadow-gray-200/50 border border-gray-100 overflow-hidden">
               <img src="/CasaMilksLogo.jpeg" alt="Casa Milks" className="w-12 h-12 object-contain" />
             </div>
@@ -196,7 +196,7 @@ export default function LoginPage() {
             </form>
           </div>
 
-          <p className="mt-8 text-center text-xs text-gray-400">
+          <p className="mt-8 text-center text-xs text-gray-400 pb-4">
             Casa Milks © {new Date().getFullYear()} — Latacunga, Ecuador
           </p>
         </div>

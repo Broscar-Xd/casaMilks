@@ -172,7 +172,7 @@ export default function OrdersHistoryPage() {
       {/* Modal detalle */}
       {selectedOrder && (
         <div className="modal-overlay" onClick={() => setSelectedOrder(null)}>
-          <div className="w-full max-w-lg modal-content max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-lg modal-content max-h-[80vh] overflow-y-auto mx-2 sm:mx-0" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-surface-100 px-6 py-4">
               <div>
                 <h2 className="text-base font-semibold text-surface-900">

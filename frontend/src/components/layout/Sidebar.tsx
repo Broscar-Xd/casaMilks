@@ -59,7 +59,7 @@ export function Sidebar() {
 
       {/* Sidebar */}
       <aside className={`
-        fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-surface-200 transform transition-transform duration-200
+        fixed inset-y-0 left-0 z-40 w-64 max-lg:w-full max-lg:max-w-xs bg-white border-r border-surface-200 transform transition-transform duration-200
         lg:translate-x-0 lg:static lg:z-auto
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>

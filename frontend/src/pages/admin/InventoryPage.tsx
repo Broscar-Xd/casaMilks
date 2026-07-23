@@ -70,12 +70,12 @@ export default function InventoryPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Inventario</h1>
           <p className="text-xs text-gray-500">{currentBranch.name}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button onClick={viewMovements} className="btn-secondary"><History size={16} /> Movimientos</button>
           <button onClick={() => setShowAdjust(true)} className="btn-primary"><Plus size={16} /> Ajustar Stock</button>
         </div>
@@ -138,7 +138,7 @@ export default function InventoryPage() {
       {/* Modal Ajuste */}
       {showAdjust && (
         <div className="modal-overlay">
-          <div className="w-full max-w-md modal-content">
+          <div className="w-full max-w-md modal-content mx-2 sm:mx-0">
             <div className="border-b border-surface-100 px-6 py-4"><h2 className="text-lg font-semibold">Ajustar Stock</h2></div>
             <div className="space-y-4 px-6 py-4">
               <div>
@@ -170,7 +170,7 @@ export default function InventoryPage() {
       {/* Modal Movimientos */}
       {showMovements && (
         <div className="modal-overlay">
-          <div className="w-full max-w-2xl max-h-[80vh] modal-content overflow-hidden">
+          <div className="w-full max-w-2xl max-h-[80vh] modal-content overflow-hidden mx-2 sm:mx-0">
             <div className="border-b border-surface-100 px-6 py-4 flex justify-between items-center">
               <h2 className="text-lg font-semibold">Historial de Movimientos</h2>
               <button onClick={() => setShowMovements(false)} className="btn-ghost p-1">✕</button>

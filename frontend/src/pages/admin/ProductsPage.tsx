@@ -161,7 +161,7 @@ export default function ProductsPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Productos</h1>
           <p className="text-xs text-gray-500">{products.length} productos registrados</p>
@@ -227,7 +227,7 @@ export default function ProductsPage() {
       {/* Modal */}
       {showModal && (
         <div className="modal-overlay">
-          <div className="w-full max-w-md modal-content">
+          <div className="w-full max-w-md modal-content mx-2 sm:mx-0">
             <div className="border-b border-surface-100 px-6 py-4">
               <h2 className="text-lg font-semibold">{editing ? 'Editar Producto' : 'Nuevo Producto'}</h2>
             </div>

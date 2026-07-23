@@ -65,7 +65,7 @@ export default function TablesAdminPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
         <div><h1 className="text-xl font-bold text-gray-900">Mesas</h1><p className="text-xs text-gray-500">{tables.length} mesas</p></div>
         <button onClick={openCreate} className="btn-primary"><Plus size={18} /> Nueva Mesa</button>
       </div>
@@ -100,7 +100,7 @@ export default function TablesAdminPage() {
       </div>
       {showModal && (
         <div className="modal-overlay">
-          <div className="w-full max-w-md modal-content">
+          <div className="w-full max-w-md modal-content mx-2 sm:mx-0">
             <div className="border-b border-surface-100 px-6 py-4"><h2 className="text-lg font-semibold">{editing ? 'Editar Mesa' : 'Nueva Mesa'}</h2></div>
             <div className="space-y-4 px-6 py-4">
               <div><label className="label">Nombre de mesa</label><input className="input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>

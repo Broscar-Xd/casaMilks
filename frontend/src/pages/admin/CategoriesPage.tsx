@@ -57,7 +57,7 @@ export default function CategoriesPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Categorías</h1>
           <p className="text-xs text-gray-500">{categories.length} categorías</p>
@@ -94,7 +94,7 @@ export default function CategoriesPage() {
 
       {showModal && (
         <div className="modal-overlay">
-          <div className="w-full max-w-md modal-content">
+          <div className="w-full max-w-md modal-content mx-2 sm:mx-0">
             <div className="border-b border-surface-100 px-6 py-4"><h2 className="text-lg font-semibold">{editing ? 'Editar Categoría' : 'Nueva Categoría'}</h2></div>
             <div className="space-y-4 px-6 py-4">
               <div>
