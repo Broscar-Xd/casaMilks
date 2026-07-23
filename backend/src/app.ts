@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { env } from './config/env';
 import { errorHandler } from './middlewares/errorHandler';
 import { authRoutes } from './routes/auth.routes';
@@ -21,12 +22,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Servir frontend compilado (en producción)
+const publicPath = path.join(__dirname, '../../public');
+app.use(express.static(publicPath));
+
 // Health check
 app.get('/api/health', (_req, res) => {
   res.json({ success: true, message: 'Casa Milks API funcionando', timestamp: new Date().toISOString() });
 });
 
-// Rutas
+// Rutas API
 app.use('/api/auth', authRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/categories', categoryRoutes);
@@ -39,6 +44,11 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/closes', closeRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/tables', tableRoutes);
+
+// SPA fallback — cualquier ruta que no sea API sirve el index.html
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(publicPath, 'index.html'));
+});
 
 // Manejo de errores (debe ir al final)
 app.use(errorHandler);
