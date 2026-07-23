@@ -23,7 +23,7 @@ app.use(cors());
 app.use(express.json());
 
 // Servir frontend compilado (en producción)
-const publicPath = path.join(__dirname, '../public');
+const publicPath = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(publicPath));
 
 // Health check
