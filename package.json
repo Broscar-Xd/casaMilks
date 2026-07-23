@@ -1,0 +1,9 @@
+{
+  "name": "casamilks",
+  "private": true,
+  "scripts": {
+    "build": "cd backend && npm install && npx prisma generate && npm run build",
+    "start": "cd backend && npx prisma db push --accept-data-loss && npx tsx prisma/seed.ts && node dist/index.js",
+    "postinstall": "cd backend && npm install"
+  }
+}
