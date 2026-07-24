@@ -13,7 +13,16 @@ export const supplierRepository = {
 
   create: (data: {
     branchId: string; supplierName: string; cashAmount: number; transferAmount: number; total: number; notes?: string | null;
-  }) => prisma.supplierPayment.create({ data }),
+  }) => prisma.supplierPayment.create({
+    data: {
+      supplierName: data.supplierName,
+      cashAmount: data.cashAmount,
+      transferAmount: data.transferAmount,
+      total: data.total,
+      notes: data.notes,
+      branch: { connect: { id: data.branchId } },
+    },
+  }),
 
   listSuppliers: (branchId: string) =>
     prisma.supplierPayment.findMany({
