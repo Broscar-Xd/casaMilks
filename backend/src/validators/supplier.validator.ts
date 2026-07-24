@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const createSupplierPaymentSchema = z.object({
   supplierName: z.string().min(1, 'Nombre del proveedor requerido'),
+  branchId: z.string().min(1, 'Local requerido'),
   cashAmount: z.number().min(0).optional().default(0),
   transferAmount: z.number().min(0).optional().default(0),
   notes: z.string().optional().nullable(),
