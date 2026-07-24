@@ -66,12 +66,15 @@ export default function POSPage() {
     } catch { /* silent */ }
   }, [currentBranch]);
 
-  useEffect(() => { fetchTables(); }, [fetchTables]);
+  useEffect(() => { fetchTables(); fetchTakeoutOrders(); }, [fetchTables, fetchTakeoutOrders]);
 
   // Polling cada 5 segundos
   useEffect(() => {
     if (!currentBranch) return;
-    const interval = setInterval(fetchTables, 5000);
+    const interval = setInterval(() => {
+      fetchTables();
+      fetchTakeoutOrders();
+    }, 5000);
     return () => clearInterval(interval);
   }, [fetchTables, fetchTakeoutOrders, currentBranch]);
 
@@ -219,7 +222,7 @@ export default function POSPage() {
   };
 
   const submitClose = async () => {
-    if (!currentOrder || !selectedTable) return;
+    if (!currentOrder) return;
     const paymentTotal = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
     if (Math.abs(paymentTotal - Number(currentOrder.total)) > 0.01) {
       toast.error('El total de los pagos debe coincidir con el total');
@@ -244,7 +247,9 @@ export default function POSPage() {
       if (res.success) {
         toast.success('Venta cerrada exitosamente');
         setShowCloseModal(false);
+        setCurrentOrder(null);
         fetchTables();
+        fetchTakeoutOrders();
         if (res.data) printReceipt(res.data);
       }
     } catch (err) {
@@ -291,11 +296,14 @@ export default function POSPage() {
   if (loading) return <div className="flex h-64 items-center justify-center"><Loader2 size={32} className="animate-spin text-brand-500" /></div>;
 
   return (
-    <div className="flex-1 flex flex-col lg:flex-row">
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={openTakeoutModal} className="btn-primary mb-4 w-full sm:w-auto">
-          <Package size={18} /> Nuevo Pedido para llevar
-        </button>
+    <div className="flex-1 flex flex-col">
+      {/* Botón para llevar */}
+      <button onClick={openTakeoutModal} className="btn-primary mb-4 w-full sm:w-auto self-start">
+        <Package size={18} /> Nuevo Pedido para llevar
+      </button>
+
+      {/* Encabezado */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
         <h1 className="text-lg font-semibold text-surface-900">Mapa de Mesas</h1>
         <div className="flex items-center gap-3">
           <StatusLegend color="bg-emerald-500" label="Libre" />
@@ -304,7 +312,8 @@ export default function POSPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      {/* Grid de mesas */}
+      <div className="flex-1 overflow-y-auto min-h-0">
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">
           {tables.map((table) => {
             return (
