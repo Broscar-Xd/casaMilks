@@ -17,6 +17,7 @@ import TablesAdminPage from '@/pages/admin/TablesAdminPage';
 import OrdersHistoryPage from '@/pages/admin/OrdersHistoryPage';
 import ClosesPage from '@/pages/admin/ClosesPage';
 import ReportsPage from '@/pages/admin/ReportsPage';
+import SuppliersPage from '@/pages/admin/SuppliersPage';
 import SettingsPage from '@/pages/admin/SettingsPage';
 
 export default function App() {

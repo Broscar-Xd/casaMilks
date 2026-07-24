@@ -15,6 +15,7 @@ import { reportRoutes } from './routes/report.routes';
 import { closeRoutes } from './routes/close.routes';
 import { userRoutes } from './routes/user.routes';
 import { tableRoutes } from './routes/table.routes';
+import { supplierRoutes } from './routes/supplier.routes';
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/closes', closeRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/tables', tableRoutes);
+app.use('/api/suppliers', supplierRoutes);
 
 // SPA fallback — cualquier ruta que no sea API sirve el index.html
 app.get('*', (_req, res) => {

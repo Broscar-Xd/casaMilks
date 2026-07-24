@@ -23,6 +23,7 @@ const adminLinks = [
   { to: '/admin/inventory', label: 'Inventario', icon: ClipboardList },
   { to: '/admin/users', label: 'Usuarios', icon: Users },
   { to: '/admin/closes', label: 'Cierre de Caja', icon: ListChecks },
+  { to: '/admin/suppliers', label: 'Proveedores', icon: Users },
   { to: '/admin/reports', label: 'Reportes', icon: BarChart3 },
   { to: '/admin/orders', label: 'Pedidos', icon: Receipt },
   { to: '/admin/branches', label: 'Locales', icon: Store },

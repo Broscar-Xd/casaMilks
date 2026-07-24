@@ -28,6 +28,7 @@ model Branch {
   inventoryMovements  InventoryMovement[]
   dailyCloses         DailyClose[]
   electronicReceipts  ElectronicReceipt[]
+  supplierPayments    SupplierPayment[]
 
   @@map("branches")
 }
@@ -233,15 +234,11 @@ model InventoryMovement {
   @@map("inventory_movements")
 }
 
-// MovementType: IN | OUT | ADJUSTMENT
-
 enum OrderStatus {
   OPEN
   CLOSED
   CANCELLED
 }
-
-// OrderStatus: OPEN | CLOSED | CANCELLED
 
 enum PaymentMethod {
   CASH
@@ -401,4 +398,24 @@ model DailyClose {
   @@unique([branchId, closeDate])
   @@index([branchId])
   @@map("daily_closes")
+}
+
+/// Pagos a proveedores. Registra pagos realizados a proveedores
+/// desglosados por método de pago (efectivo y/o transferencia).
+model SupplierPayment {
+  id              String   @id @default(uuid())
+  branchId        String   @map("branch_id")
+  supplierName    String   @map("supplier_name")
+  cashAmount      Decimal  @default(0) @map("cash_amount")
+  transferAmount  Decimal  @default(0) @map("transfer_amount")
+  total           Decimal
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@index([branchId])
+  @@index([supplierName])
+  @@index([createdAt])
+  @@map("supplier_payments")
 }
