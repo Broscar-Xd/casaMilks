@@ -40,6 +40,7 @@ export default function App() {
               <Route path="/admin/tables" element={<TablesAdminPage />} />
               <Route path="/admin/orders" element={<OrdersHistoryPage />} />
               <Route path="/admin/closes" element={<ClosesPage />} />
+              <Route path="/admin/suppliers" element={<SuppliersPage />} />
               <Route path="/admin/reports" element={<ReportsPage />} />
               <Route path="/admin/settings" element={<SettingsPage />} />
               <Route path="/" element={<Navigate to="/pos" replace />} />
