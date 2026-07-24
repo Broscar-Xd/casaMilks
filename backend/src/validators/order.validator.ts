@@ -15,6 +15,13 @@ export const createTableOrderSchema = z.object({
   items: z.array(orderItemSchema).min(1, 'Debe tener al menos un producto'),
 });
 
+export const createTakeoutOrderSchema = z.object({
+  customerName: z.string().min(1, 'Nombre del cliente requerido'),
+  branchId: z.string().uuid('Local inválido'),
+  notes: z.string().optional().nullable(),
+  items: z.array(orderItemSchema).min(1, 'Debe tener al menos un producto'),
+});
+
 export const addItemsToOrderSchema = z.object({
   items: z.array(orderItemSchema).min(1, 'Debe tener al menos un producto'),
 });
@@ -30,5 +37,6 @@ export const closeOrderSchema = z.object({
 });
 
 export type CreateTableOrderInput = z.infer<typeof createTableOrderSchema>;
+export type CreateTakeoutOrderInput = z.infer<typeof createTakeoutOrderSchema>;
 export type AddItemsToOrderInput = z.infer<typeof addItemsToOrderSchema>;
 export type CloseOrderInput = z.infer<typeof closeOrderSchema>;

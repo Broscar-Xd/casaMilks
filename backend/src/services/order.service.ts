@@ -4,7 +4,7 @@ import { inventoryRepository } from '../repositories/inventory.repository';
 import { branchRepository } from '../repositories/branch.repository';
 import { prisma } from '../config/database';
 import { AppError } from '../middlewares/errorHandler';
-import { CreateTableOrderInput, AddItemsToOrderInput, CloseOrderInput } from '../validators/order.validator';
+import { CreateTableOrderInput, CreateTakeoutOrderInput, AddItemsToOrderInput, CloseOrderInput } from '../validators/order.validator';
 
 export const orderService = {
   getById: async (id: string) => {
@@ -30,6 +30,28 @@ export const orderService = {
    * Crea un pedido para una mesa. Si la mesa está FREE, pasa a OCCUPIED.
    * Los productos que requieren preparación se envían a cocina automáticamente.
    */
+  /**
+   * Crea un pedido para llevar (sin mesa). Solo requiere nombre de cliente.
+   */
+  createTakeout: async (input: CreateTakeoutOrderInput, userId: string) => {
+    const order = await prisma.order.create({
+      data: {
+        branchId: input.branchId,
+        userId,
+        customerName: input.customerName,
+        notes: input.notes,
+        status: 'OPEN',
+        total: input.items.reduce((s, i) => s + Number(i.subtotal), 0),
+        items: { create: input.items.map(i => ({ ...i, sentToKitchen: false })) },
+      },
+    });
+
+    // Enviar a cocina productos que requieren preparación
+    await sendToKitchen(order.id, input.items);
+
+    return orderRepository.findById(order.id);
+  },
+
   create: async (input: CreateTableOrderInput, userId: string) => {
     const table = await tableRepository.findById(input.tableId);
     if (!table) throw new AppError('Mesa no encontrada', 404);
@@ -113,7 +135,9 @@ export const orderService = {
           status: 'EMITTED',
         },
       });
-      await tx.table.update({ where: { id: order.tableId }, data: { status: 'FREE' } });
+      if (order.tableId) {
+        await tx.table.update({ where: { id: order.tableId }, data: { status: 'FREE' } });
+      }
     });
 
     // 2. Descontar inventario (fuera de transacción — operaciones lentas)

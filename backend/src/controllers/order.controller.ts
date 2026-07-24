@@ -35,6 +35,13 @@ export const orderController = {
     } catch (error) { next(error); }
   },
 
+  createTakeout: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const order = await orderService.createTakeout(req.body, req.user!.userId);
+      res.status(201).json({ success: true, data: order });
+    } catch (error) { next(error); }
+  },
+
   addItems: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const order = await orderService.addItems(p(req.params, 'id'), req.body);

@@ -96,7 +96,7 @@ model User {
   name      String   @unique
   email     String
   password  String
-  role      Role     @default(STAFF)
+  role      String   @default("STAFF")
   active    Boolean  @default(true)
   branchId  String?  @map("branch_id")
   createdAt DateTime @default(now()) @map("created_at")
@@ -109,10 +109,7 @@ model User {
   @@map("users")
 }
 
-enum Role {
-  ADMIN
-  STAFF
-}
+// Role: ADMIN | STAFF (String)
 
 /// Categorías de productos (ej: Clásicos, Especiales, Bebidas).
 model Category {
@@ -210,7 +207,7 @@ model InventoryMovement {
   id           String   @id @default(uuid())
   ingredientId String   @map("ingredient_id")
   branchId     String   @map("branch_id")
-  type         MovementType
+  type         String
   quantity     Decimal
   reference    String?  @map("reference")
   orderId      String?  @map("order_id")
@@ -227,25 +224,11 @@ model InventoryMovement {
   @@map("inventory_movements")
 }
 
-enum MovementType {
-  IN
-  OUT
-  ADJUSTMENT
-}
+// MovementType: IN | OUT | ADJUSTMENT (String)
 
-enum OrderStatus {
-  OPEN
-  CLOSED
-  CANCELLED
-}
+// OrderStatus: OPEN | CLOSED | CANCELLED (String)
 
-enum PaymentMethod {
-  CASH
-  CARD
-  TRANSFER
-  DEUNA
-  PANAPAY
-}
+// PaymentMethod: CASH | CARD | TRANSFER | DEUNA | PANAPAY (String)
 
 /// Pedidos. Un pedido pertenece a un local, fue tomado por un usuario
 /// y está asociado a una mesa. Los pedidos permanecen OPEN hasta que
@@ -253,17 +236,17 @@ enum PaymentMethod {
 model Order {
   id           String      @id @default(uuid())
   branchId     String      @map("branch_id")
-  tableId      String      @map("table_id")
+  tableId      String?     @map("table_id")
   userId       String      @map("user_id")
   customerName String?     @map("customer_name")
-  status       OrderStatus @default(OPEN)
+  status       String      @default("OPEN")
   total        Decimal
   notes        String?
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
   branch             Branch              @relation(fields: [branchId], references: [id])
-  table              Table               @relation(fields: [tableId], references: [id])
+  table              Table?              @relation(fields: [tableId], references: [id])
   user               User                @relation(fields: [userId], references: [id])
   items              OrderItem[]
   payments           Payment[]
@@ -339,7 +322,7 @@ model KitchenSendItem {
 model Payment {
   id              String        @id @default(uuid())
   orderId         String        @map("order_id")
-  method          PaymentMethod
+  method          String
   amount          Decimal
   referenceNumber String?       @map("reference_number")
   cashReceived    Decimal?      @map("cash_received")

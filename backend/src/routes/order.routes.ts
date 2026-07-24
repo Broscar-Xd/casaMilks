@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { orderController } from '../controllers/order.controller';
 import { authenticate } from '../middlewares/auth';
 import { validate } from '../middlewares/validate';
-import { createTableOrderSchema, addItemsToOrderSchema, closeOrderSchema } from '../validators/order.validator';
+import { createTableOrderSchema, createTakeoutOrderSchema, addItemsToOrderSchema, closeOrderSchema } from '../validators/order.validator';
 
 export const orderRoutes = Router();
 
@@ -14,6 +14,7 @@ orderRoutes.patch('/kitchen/:sendId/ready', orderController.markKitchenReady);
 
 // Table orders
 orderRoutes.get('/table/:tableId', orderController.getByTable);
+orderRoutes.post('/takeout', validate(createTakeoutOrderSchema), orderController.createTakeout);
 
 // CRUD
 orderRoutes.get('/', orderController.listByBranch);

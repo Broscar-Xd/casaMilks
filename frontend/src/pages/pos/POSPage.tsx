@@ -3,7 +3,7 @@ import { useBranch } from '@/contexts/BranchContext';
 import { api } from '@/services/api';
 import { formatCurrency, getPaymentMethodLabel } from '@/lib/utils';
 import toast from 'react-hot-toast';
-import { Loader2, Plus, Minus, Trash2, Receipt, ChefHat, ShoppingCart, X, Search, Banknote, CreditCard, Smartphone } from 'lucide-react';
+import { Loader2, Plus, Minus, Trash2, Receipt, ChefHat, ShoppingCart, X, Search, Banknote, CreditCard, Smartphone, Package } from 'lucide-react';
 import type { TableItem, Product, Category, Order, OrderItem, ApiResponse, PaymentMethod, KitchenSend } from '@/types';
 
 export default function POSPage() {
@@ -41,6 +41,12 @@ export default function POSPage() {
     { method: 'CASH', amount: 0, referenceNumber: '', cashReceived: 0 },
   ]);
 
+  // Takeout orders
+  const [takeoutOrders, setTakeoutOrders] = useState<Order[]>([]);
+  const [showTakeoutModal, setShowTakeoutModal] = useState(false);
+  const [isTakeout, setIsTakeout] = useState(false);
+  const [customerNameInput, setCustomerNameInput] = useState('');
+
   const fetchTables = useCallback(async () => {
     if (!currentBranch) return;
     try {
@@ -50,6 +56,16 @@ export default function POSPage() {
     finally { setLoading(false); }
   }, [currentBranch]);
 
+  const fetchTakeoutOrders = useCallback(async () => {
+    if (!currentBranch) return;
+    try {
+      const res = await api.get<ApiResponse<Order[]>>(`/orders?branchId=${currentBranch.id}`);
+      if (res.success && res.data) {
+        setTakeoutOrders(res.data.filter(o => !o.tableId && o.status !== 'CLOSED'));
+      }
+    } catch { /* silent */ }
+  }, [currentBranch]);
+
   useEffect(() => { fetchTables(); }, [fetchTables]);
 
   // Polling cada 5 segundos
@@ -57,7 +73,7 @@ export default function POSPage() {
     if (!currentBranch) return;
     const interval = setInterval(fetchTables, 5000);
     return () => clearInterval(interval);
-  }, [fetchTables, currentBranch]);
+  }, [fetchTables, fetchTakeoutOrders, currentBranch]);
 
   const fetchProducts = async () => {
     if (!currentBranch) return;
@@ -73,6 +89,19 @@ export default function POSPage() {
 
   const openTableForOrder = (table: TableItem) => {
     setSelectedTable(table);
+    setIsTakeout(false);
+    setCustomerNameInput('');
+    setCart([]);
+    setSearch('');
+    setSelectedCategory(null);
+    fetchProducts();
+    setShowOrderModal(true);
+  };
+
+  const openTakeoutModal = () => {
+    setSelectedTable(null);
+    setIsTakeout(true);
+    setCustomerNameInput('');
     setCart([]);
     setSearch('');
     setSelectedCategory(null);
@@ -133,19 +162,38 @@ export default function POSPage() {
   const totalCart = cart.reduce((s, i) => s + i.subtotal, 0);
 
   const submitOrder = async () => {
-    if (!selectedTable || cart.length === 0 || !currentBranch) return;
+    if ((!selectedTable && !isTakeout) || cart.length === 0 || !currentBranch) return;
+    if (isTakeout && !customerNameInput.trim()) {
+      toast.error('Nombre del cliente requerido');
+      return;
+    }
     setSubmitting(true);
     try {
-      const res = await api.post<ApiResponse<Order>>('/orders', {
-        tableId: selectedTable.id,
-        branchId: currentBranch.id,
-        items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: Number(i.product.price), subtotal: i.subtotal })),
-      });
-      if (res.success) {
-        toast.success('Pedido enviado a cocina');
-        setShowOrderModal(false);
-        setCart([]);
-        fetchTables();
+      if (isTakeout) {
+        const res = await api.post<ApiResponse<Order>>('/orders/takeout', {
+          branchId: currentBranch.id,
+          customerName: customerNameInput.trim(),
+          items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: Number(i.product.price), subtotal: i.subtotal })),
+        });
+        if (res.success) {
+          toast.success('Pedido para llevar enviado a cocina');
+          setShowOrderModal(false);
+          setCart([]);
+          fetchTables();
+          fetchTakeoutOrders();
+        }
+      } else {
+        const res = await api.post<ApiResponse<Order>>('/orders', {
+          tableId: selectedTable!.id,
+          branchId: currentBranch.id,
+          items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: Number(i.product.price), subtotal: i.subtotal })),
+        });
+        if (res.success) {
+          toast.success('Pedido enviado a cocina');
+          setShowOrderModal(false);
+          setCart([]);
+          fetchTables();
+        }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al crear pedido');
@@ -238,12 +286,16 @@ export default function POSPage() {
     w.document.close();
   };
 
+  const paymentTotal = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
   if (!currentBranch) return <div className="flex h-64 items-center justify-center"><p className="text-gray-500">Selecciona un local</p></div>;
   if (loading) return <div className="flex h-64 items-center justify-center"><Loader2 size={32} className="animate-spin text-brand-500" /></div>;
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 flex flex-col lg:flex-row">
       <div className="flex items-center justify-between mb-4">
+        <button onClick={openTakeoutModal} className="btn-primary mb-4 w-full sm:w-auto">
+          <Package size={18} /> Nuevo Pedido para llevar
+        </button>
         <h1 className="text-lg font-semibold text-surface-900">Mapa de Mesas</h1>
         <div className="flex items-center gap-3">
           <StatusLegend color="bg-emerald-500" label="Libre" />
@@ -296,11 +348,55 @@ export default function POSPage() {
         </div>
       </div>
 
+      {takeoutOrders.length > 0 && (
+        <>
+          <div className="divider" />
+          <h2 className="text-sm font-semibold text-surface-900 mb-3">Pedidos para llevar</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-4">
+            {takeoutOrders.map((order) => (
+              <div key={order.id} className="relative rounded-2xl bg-white shadow-soft border border-surface-200/80 p-4 flex flex-col items-center gap-2.5 w-full">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 flex items-center justify-center text-brand-600 font-semibold text-sm shadow-soft">
+                  <Package size={20} />
+                </div>
+                <span className="text-sm font-semibold text-surface-800">{order.customerName || 'Cliente'}</span>
+                <span className="text-xs text-surface-400">{formatCurrency(Number(order.total))}</span>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-medium">En preparación</span>
+                <div className="flex gap-2 mt-1 w-full">
+                  <button onClick={async () => {
+                    const res = await api.get<ApiResponse<Order>>(`/orders/${order.id}`);
+                    if (res.success && res.data) {
+                      setCurrentOrder(res.data);
+                      setShowAddItemsModal(true);
+                      fetchProducts();
+                    }
+                  }} className="btn-secondary text-xs flex-1 py-1.5 px-2"><ShoppingCart size={13} /> Add</button>
+                  <button onClick={async () => {
+                    const res = await api.get<ApiResponse<Order>>(`/orders/${order.id}`);
+                    if (res.success && res.data) {
+                      setCurrentOrder(res.data);
+                      setPayments([{ method: 'CASH', amount: Number(res.data.total), referenceNumber: '', cashReceived: 0 }]);
+                      setShowCloseModal(true);
+                    }
+                  }} className="btn-primary text-xs flex-1 py-1.5 px-2"><Receipt size={13} /> Cobrar</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* MODAL: Nuevo Pedido */}
       {showOrderModal && (
-        <TableModal title={`${selectedTable?.name} - Nuevo Pedido`} onClose={() => setShowOrderModal(false)}>
+        <TableModal title={isTakeout ? 'Pedido para llevar' : `${selectedTable?.name} - Nuevo Pedido`} onClose={() => setShowOrderModal(false)}>
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 h-full">
             <div className="flex-1 flex flex-col min-w-0">
+              {isTakeout && (
+                <div className="mb-3">
+                  <label className="label">Nombre del cliente *</label>
+                  <input type="text" className="input" placeholder="Nombre del cliente" value={customerNameInput}
+                    onChange={e => setCustomerNameInput(e.target.value)} required />
+                </div>
+              )}
               <input type="text" placeholder="Buscar producto..." className="input mb-2 py-2 text-sm"
                 value={search} onChange={e => setSearch(e.target.value)} />
               <div className="flex gap-1.5 overflow-x-auto pb-2">
@@ -440,7 +536,11 @@ export default function POSPage() {
               <h4 className="text-sm font-semibold text-gray-900 mb-3">Formas de Pago</h4>
               <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                 {payments.map((payment, idx) => (
-                  <div key={idx} className="rounded-xl border border-gray-200/80 bg-white p-4 space-y-3 shadow-soft">
+                  <div key={idx} className={`rounded-xl border p-4 space-y-3 shadow-soft ${
+                    payment.method !== 'CASH' && !payment.referenceNumber && payment.amount > 0 ? 'border-red-300 bg-red-50/30' : 
+                    payment.method !== 'CASH' && payment.referenceNumber ? 'border-emerald-300 bg-emerald-50/30' :
+                    'border-gray-200/80 bg-white'
+                  }`}>
                     <div className="flex items-center gap-2">
                       <select value={payment.method} onChange={e => {
                         const next = [...payments]; next[idx] = { ...next[idx], method: e.target.value as PaymentMethod, referenceNumber: '' }; setPayments(next);
@@ -460,16 +560,32 @@ export default function POSPage() {
                       )}
                     </div>
                     {payment.method !== 'CASH' && (
-                      <input type="text" className="input text-sm" placeholder="N° de comprobante" value={payment.referenceNumber}
-                        onChange={e => { const next = [...payments]; next[idx].referenceNumber = e.target.value; setPayments(next); }} />
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs text-gray-500">N° de comprobante</label>
+                          {payment.amount > 0 && !payment.referenceNumber && (
+                            <span className="text-xs text-red-500 font-medium">Requerido</span>
+                          )}
+                        </div>
+                        <input type="text" className={`input text-sm ${payment.amount > 0 && !payment.referenceNumber ? 'border-red-400 focus:ring-red-500/10' : ''}`}
+                          placeholder="N° de comprobante" value={payment.referenceNumber}
+                          onChange={e => { const next = [...payments]; next[idx].referenceNumber = e.target.value; setPayments(next); }} />
+                      </div>
                     )}
                     {payment.method === 'CASH' && (
-                      <input type="number" step="0.01" className="input text-sm" placeholder="Monto recibido" value={payment.cashReceived || ''}
-                        onChange={e => { const next = [...payments]; next[idx].cashReceived = parseFloat(e.target.value) || 0; setPayments(next); }} />
-                    )}
-                    {payment.method === 'CASH' && Number(payment.cashReceived) > 0 && (
-                      <div className="text-xs text-emerald-600 font-medium text-right">
-                        Cambio: {formatCurrency(Math.max(0, Number(payment.cashReceived) - Number(payment.amount)))}
+                      <div>
+                        <input type="number" step="0.01" className={`input text-sm ${payment.amount > 0 && Number(payment.cashReceived || 0) < payment.amount ? 'border-amber-400' : ''}`}
+                          placeholder="Monto recibido" value={payment.cashReceived || ''}
+                          onChange={e => { const next = [...payments]; next[idx].cashReceived = parseFloat(e.target.value) || 0; setPayments(next); }} />
+                        {Number(payment.cashReceived || 0) > 0 && (
+                          <div className="mt-1 text-xs">
+                            {Number(payment.cashReceived) >= payment.amount ? (
+                              <span className="text-emerald-600 font-medium">Cambio: {formatCurrency(Number(payment.cashReceived) - payment.amount)}</span>
+                            ) : (
+                              <span className="text-amber-600 font-medium">Faltan: {formatCurrency(payment.amount - Number(payment.cashReceived))}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -478,6 +594,24 @@ export default function POSPage() {
               <button onClick={() => setPayments(prev => [...prev, { method: 'CASH', amount: 0, referenceNumber: '', cashReceived: 0 }])}
                 className="btn-secondary w-full text-sm mt-3">+ Agregar forma de pago</button>
 
+              <div className="rounded-xl bg-gray-50 p-3 space-y-1.5 mt-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Total del pedido:</span>
+                  <span className="font-semibold">{formatCurrency(Number(currentOrder.total))}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Total pagos:</span>
+                  <span className={`font-semibold ${Math.abs(Number(currentOrder.total) - paymentTotal) < 0.01 && paymentTotal > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {formatCurrency(paymentTotal)}
+                  </span>
+                </div>
+                {Math.abs(Number(currentOrder.total) - paymentTotal) > 0.01 && (
+                  <div className="flex justify-between text-xs text-red-500 font-medium">
+                    <span>Diferencia:</span>
+                    <span>{formatCurrency(Math.abs(Number(currentOrder.total) - paymentTotal))}</span>
+                  </div>
+                )}
+              </div>
               <div className="flex gap-3 mt-4">
                 <button onClick={() => setShowCloseModal(false)} className="btn-secondary flex-1">Cancelar</button>
                 <button onClick={submitClose} disabled={submitting} className="btn-primary flex-1">
