@@ -96,7 +96,7 @@ model User {
   name      String   @unique
   email     String
   password  String
-  role      String   @default("STAFF")
+  role      Role     @default(STAFF)
   active    Boolean  @default(true)
   branchId  String?  @map("branch_id")
   createdAt DateTime @default(now()) @map("created_at")
@@ -109,7 +109,10 @@ model User {
   @@map("users")
 }
 
-// Role: ADMIN | STAFF (String)
+enum Role {
+  ADMIN
+  STAFF
+}
 
 /// Categorías de productos (ej: Clásicos, Especiales, Bebidas).
 model Category {
@@ -201,13 +204,19 @@ model Recipe {
   @@map("recipes")
 }
 
+enum MovementType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
 /// Movimientos de inventario. Registra cada entrada o salida
 /// de insumos para mantener trazabilidad completa.
 model InventoryMovement {
   id           String   @id @default(uuid())
   ingredientId String   @map("ingredient_id")
   branchId     String   @map("branch_id")
-  type         String
+  type         MovementType
   quantity     Decimal
   reference    String?  @map("reference")
   orderId      String?  @map("order_id")
@@ -224,11 +233,23 @@ model InventoryMovement {
   @@map("inventory_movements")
 }
 
-// MovementType: IN | OUT | ADJUSTMENT (String)
+// MovementType: IN | OUT | ADJUSTMENT
 
-// OrderStatus: OPEN | CLOSED | CANCELLED (String)
+enum OrderStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
 
-// PaymentMethod: CASH | CARD | TRANSFER | DEUNA | PANAPAY (String)
+// OrderStatus: OPEN | CLOSED | CANCELLED
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  DEUNA
+  PANAPAY
+}
 
 /// Pedidos. Un pedido pertenece a un local, fue tomado por un usuario
 /// y está asociado a una mesa. Los pedidos permanecen OPEN hasta que
@@ -239,7 +260,7 @@ model Order {
   tableId      String?     @map("table_id")
   userId       String      @map("user_id")
   customerName String?     @map("customer_name")
-  status       String      @default("OPEN")
+  status       OrderStatus @default(OPEN)
   total        Decimal
   notes        String?
   createdAt    DateTime    @default(now()) @map("created_at")
@@ -322,7 +343,7 @@ model KitchenSendItem {
 model Payment {
   id              String        @id @default(uuid())
   orderId         String        @map("order_id")
-  method          String
+  method          PaymentMethod
   amount          Decimal
   referenceNumber String?       @map("reference_number")
   cashReceived    Decimal?      @map("cash_received")
