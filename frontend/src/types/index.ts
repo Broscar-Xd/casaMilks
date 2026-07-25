@@ -149,6 +149,8 @@ export interface DailyClose {
   branchId: string;
   closeDate: string;
   totalSales: number;
+  totalCost: number;
+  netProfit: number;
   totalTransactions: number;
   averageTicket: number;
   cashTotal: number;

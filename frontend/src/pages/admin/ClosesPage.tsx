@@ -76,6 +76,22 @@ export default function ClosesPage() {
                 <span className="text-lg font-bold text-gray-900">{formatCurrency(close.totalSales)}</span>
               </div>
 
+              {/* Resumen ganancia/costo/neto */}
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                <div className="rounded-xl bg-gray-50/60 p-3 text-center border border-gray-200/60">
+                  <p className="text-xs text-surface-400 font-medium">Total Ventas</p>
+                  <p className="text-lg font-semibold text-surface-900">{formatCurrency(close.totalSales)}</p>
+                </div>
+                <div className="rounded-xl bg-red-50/60 p-3 text-center border border-red-200/60">
+                  <p className="text-xs text-surface-400 font-medium">Costo (Proveedores)</p>
+                  <p className="text-lg font-semibold text-red-700">{formatCurrency(close.totalCost)}</p>
+                </div>
+                <div className={`rounded-xl p-3 text-center border ${Number(close.netProfit) >= 0 ? 'bg-emerald-50/60 border-emerald-200/60' : 'bg-red-50/60 border-red-200/60'}`}>
+                  <p className="text-xs text-surface-400 font-medium">Ganancia Neta</p>
+                  <p className={`text-lg font-semibold ${Number(close.netProfit) >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatCurrency(close.netProfit)}</p>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
                 <div className="rounded-xl bg-emerald-50/60 p-3 text-center">
                   <p className="text-xs text-surface-400">Efectivo</p>

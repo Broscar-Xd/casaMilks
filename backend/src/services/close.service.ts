@@ -37,12 +37,25 @@ export const closeService = {
       return found ? Number(found._sum.amount || 0) : 0;
     };
 
+    // Calcular pagos a proveedores del día
+    const supplierTotal = await prisma.supplierPayment.aggregate({
+      where: {
+        branchId: input.branchId,
+        createdAt: { gte: closeDate, lt: nextDay },
+      },
+      _sum: { total: true },
+    });
+    const totalCost = Number(supplierTotal._sum.total || 0);
+    const netProfit = totalSales - totalCost;
+
     return prisma.dailyClose.create({
       data: {
         branchId: input.branchId,
         userId,
         closeDate,
         totalSales,
+        totalCost,
+        netProfit,
         totalTransactions: transactions,
         averageTicket,
         cashTotal: extractAmount('CASH'),
