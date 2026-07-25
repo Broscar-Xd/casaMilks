@@ -641,13 +641,13 @@ function StatusLegend({ color, label }: { color: string; label: string }) {
 
 function TableModal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="modal-overlay p-2 sm:p-4">
-      <div className="w-full max-w-5xl h-[90vh] sm:h-[85vh] modal-content flex flex-col">
+    <div className="modal-overlay p-2 sm:p-4" onClick={onClose}>
+      <div className="w-full max-w-5xl h-[90vh] sm:h-[85vh] modal-content flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-surface-100 px-6 py-4 shrink-0">
           <h2 className="text-base font-semibold text-surface-900">{title}</h2>
           <button onClick={onClose} className="btn-ghost p-1.5 rounded-xl hover:bg-surface-100"><X size={18} /></button>
         </div>
-        <div className="flex-1 overflow-hidden p-4">
+        <div className="flex-1 overflow-y-auto p-4">
           {children}
         </div>
       </div>
