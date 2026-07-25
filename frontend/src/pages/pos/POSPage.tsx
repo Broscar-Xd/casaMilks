@@ -37,9 +37,7 @@ export default function POSPage() {
   const [submitting, setSubmitting] = useState(false);
 
   // Payment
-  const [payments, setPayments] = useState<Array<{ method: PaymentMethod; amount: number; referenceNumber: string; cashReceived: number }>>([
-    { method: 'CASH', amount: 0, referenceNumber: '', cashReceived: 0 },
-  ]);
+  const [payments, setPayments] = useState<Array<{ method: PaymentMethod; amount: number; referenceNumber: string; cashReceived: number }>>([]);
 
   // Takeout orders
   const [takeoutOrders, setTakeoutOrders] = useState<Order[]>([]);
@@ -137,7 +135,7 @@ export default function POSPage() {
       const res = await api.get<ApiResponse<Order>>(`/orders/table/${table.id}`);
       if (res.success && res.data) {
         setCurrentOrder(res.data);
-        setPayments([{ method: 'CASH', amount: Number(res.data.total), referenceNumber: '', cashReceived: 0 }]);
+        setPayments([]);
       }
     } catch { /* silent */ }
     setShowCloseModal(true);
@@ -389,7 +387,7 @@ export default function POSPage() {
                     const res = await api.get<ApiResponse<Order>>(`/orders/${order.id}`);
                     if (res.success && res.data) {
                       setCurrentOrder(res.data);
-                      setPayments([{ method: 'CASH', amount: Number(res.data.total), referenceNumber: '', cashReceived: 0 }]);
+                      setPayments([]);
                       setShowCloseModal(true);
                     }
                   }} className="btn-primary text-xs flex-1 py-1.5 px-2"><Receipt size={13} /> Cobrar</button>
@@ -620,16 +618,22 @@ export default function POSPage() {
                     {formatCurrency(paymentTotal)}
                   </span>
                 </div>
-                {Math.abs(Number(currentOrder.total) - paymentTotal) > 0.01 && (
-                  <div className="flex justify-between text-xs text-red-500 font-medium">
-                    <span>Diferencia:</span>
-                    <span>{formatCurrency(Math.abs(Number(currentOrder.total) - paymentTotal))}</span>
+                {paymentTotal === 0 && payments.length > 0 && (
+                  <p className="text-xs text-amber-600 font-medium text-center pt-1">Ingresa los montos de pago</p>
+                )}
+                {paymentTotal > 0 && Math.abs(Number(currentOrder.total) - paymentTotal) > 0.01 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-center">
+                    <p className="text-xs font-semibold text-red-700">
+                      {paymentTotal < Number(currentOrder.total)
+                        ? `Falta ${formatCurrency(Number(currentOrder.total) - paymentTotal)} para completar el total`
+                        : `Hay un excedente de ${formatCurrency(paymentTotal - Number(currentOrder.total))}`}
+                    </p>
                   </div>
                 )}
               </div>
               <div className="flex gap-3 mt-4">
                 <button onClick={() => setShowCloseModal(false)} className="btn-secondary flex-1">Cancelar</button>
-                <button onClick={submitClose} disabled={submitting} className="btn-primary flex-1">
+                <button onClick={submitClose} disabled={submitting || Math.abs(Number(currentOrder.total) - paymentTotal) > 0.01 || paymentTotal === 0} className="btn-primary flex-1">
                   {submitting ? 'Procesando...' : 'Cobrar y Cerrar'}
                 </button>
               </div>
