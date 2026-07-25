@@ -45,7 +45,13 @@ export default function UsersPage() {
         await api.patch(`/users/${editing.id}`, payload);
         toast.success('Usuario actualizado');
       } else {
-        await api.post('/users', form);
+        await api.post('/users', {
+          name: form.name,
+          email: form.email,
+          password: form.password,
+          role: form.role || 'STAFF',
+          branchId: form.branchId || null,
+        });
         toast.success('Usuario creado');
       }
       setShowModal(false);

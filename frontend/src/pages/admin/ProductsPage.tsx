@@ -227,11 +227,11 @@ export default function ProductsPage() {
       {/* Modal */}
       {showModal && (
         <div className="modal-overlay">
-          <div className="w-full max-w-md modal-content mx-2 sm:mx-0">
-            <div className="border-b border-surface-100 px-6 py-4">
+          <div className="w-full max-w-lg modal-content mx-2 sm:mx-0 flex flex-col max-h-[90vh]">
+            <div className="border-b border-surface-100 px-6 py-4 shrink-0">
               <h2 className="text-lg font-semibold">{editing ? 'Editar Producto' : 'Nuevo Producto'}</h2>
             </div>
-            <div className="space-y-4 px-6 py-4">
+            <div className="space-y-4 px-6 py-4 overflow-y-auto flex-1 min-h-0">
               <div>
                 <label className="label">Nombre</label>
                 <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -310,7 +310,7 @@ export default function ProductsPage() {
                 )}
               </div>
             </div>
-            <div className="flex gap-3 border-t border-surface-100 px-6 py-4">
+            <div className="flex gap-3 border-t border-surface-100 px-6 py-4 shrink-0">
               <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">Cancelar</button>
               <button onClick={handleSubmit} disabled={saving} className="btn-primary flex-1">
                 {saving ? 'Guardando...' : editing ? 'Actualizar' : 'Crear'}

@@ -82,13 +82,18 @@ export default function POSPage() {
     if (!currentBranch) return;
     try {
       const [pRes, cRes] = await Promise.all([
-        api.get<ApiResponse<Product[]>>(`/products?branchId=${currentBranch.id}${selectedCategory ? `&categoryId=${selectedCategory}` : ''}`),
+        api.get<ApiResponse<Product[]>>(`/products?branchId=${currentBranch.id}`),
         api.get<ApiResponse<Category[]>>('/categories'),
       ]);
       if (pRes.success && pRes.data) setProducts(pRes.data);
       if (cRes.success && cRes.data) setCategories(cRes.data);
     } catch { /* silent */ }
   };
+
+  /** Productos filtrados localmente por categoría (sin llamada API) */
+  const filteredProducts = products.filter(
+    (p) => (!selectedCategory || p.categoryId === selectedCategory) && p.name.toLowerCase().includes(search.toLowerCase())
+  );
 
   const openTableForOrder = (table: TableItem) => {
     setSelectedTable(table);
@@ -409,16 +414,16 @@ export default function POSPage() {
               <input type="text" placeholder="Buscar producto..." className="input mb-2 py-2 text-sm"
                 value={search} onChange={e => setSearch(e.target.value)} />
               <div className="flex gap-1.5 overflow-x-auto pb-2">
-                <button onClick={() => { setSelectedCategory(null); fetchProducts(); }}
+                <button onClick={() => setSelectedCategory(null)}
                   className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${!selectedCategory ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-600'}`}>Todos</button>
                 {categories.map(cat => (
-                  <button key={cat.id} onClick={() => { setSelectedCategory(cat.id); fetchProducts(); }}
+                  <button key={cat.id} onClick={() => setSelectedCategory(cat.id)}
                     className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${selectedCategory === cat.id ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-600'}`}>{cat.name}</button>
                 ))}
               </div>
               <div className="flex-1 overflow-y-auto min-w-0">
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                  {products.filter(p => p.name.toLowerCase().includes(search.toLowerCase())).map(product => (
+                  {filteredProducts.map(product => (
                     <button key={product.id} onClick={() => addToCart(product)}
                       className="card p-2 text-left hover:border-brand-300 hover:shadow-sm active:scale-95 flex flex-col">
                       <div className="flex items-center justify-center rounded-lg bg-brand-50 mb-1 h-12"><span className="text-xl">🥪</span></div>
@@ -477,7 +482,7 @@ export default function POSPage() {
                 value={search} onChange={e => setSearch(e.target.value)} />
               <div className="flex-1 overflow-y-auto">
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                  {products.filter(p => p.name.toLowerCase().includes(search.toLowerCase())).map(product => (
+                  {filteredProducts.map(product => (
                     <button key={product.id} onClick={() => addToCart(product)}
                       className="card p-2 text-left hover:border-brand-300 flex flex-col">
                       <div className="flex items-center justify-center rounded-lg bg-brand-50 mb-1 h-12"><span className="text-xl">🥪</span></div>
