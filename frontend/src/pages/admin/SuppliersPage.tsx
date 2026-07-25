@@ -21,7 +21,7 @@ export default function SuppliersPage() {
   const { currentBranch } = useBranch();
   const [payments, setPayments] = useState<SupplierPayment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dateFrom, setDateFrom] = useState('');
+  const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState('');
   const [supplierFilter, setSupplierFilter] = useState('');
   const [suppliers, setSuppliers] = useState<string[]>([]);
