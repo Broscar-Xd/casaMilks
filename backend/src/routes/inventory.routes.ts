@@ -11,4 +11,4 @@ inventoryRoutes.use(authenticate);
 inventoryRoutes.get('/', inventoryController.getByBranch);
 inventoryRoutes.get('/alerts', inventoryController.getAlerts);
 inventoryRoutes.get('/movements', inventoryController.getMovements);
-inventoryRoutes.post('/adjust', authorize('ADMIN'), validate(adjustInventorySchema), inventoryController.adjust);
+inventoryRoutes.post('/adjust', validate(adjustInventorySchema), inventoryController.adjust);

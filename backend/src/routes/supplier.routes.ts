@@ -10,4 +10,4 @@ supplierRoutes.use(authenticate);
 
 supplierRoutes.get('/', supplierController.list);
 supplierRoutes.get('/list', supplierController.listSuppliers);
-supplierRoutes.post('/', authorize('ADMIN'), validate(createSupplierPaymentSchema), supplierController.create);
+supplierRoutes.post('/', validate(createSupplierPaymentSchema), supplierController.create);
