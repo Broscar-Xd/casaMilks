@@ -277,21 +277,22 @@ export default function POSPage() {
     w.document.write(`
       <html><head><title>Nota de Venta - Casa Milks</title>
       <style>body{font-family:'Courier New',monospace;font-size:12px;width:80mm;margin:0 auto;padding:10px}
-      .header{text-align:center;border-bottom:1px dashed #000;padding-bottom:10px;margin-bottom:10px}
-      .header h1{margin:0;font-size:18px}.header p{margin:2px 0;font-size:11px}
+      .header{text-align:center;border-bottom:1px dashed #000;padding-bottom:8px;margin-bottom:10px}
+      .header p{margin:1px 0;font-size:11px}
       table{width:100%;border-collapse:collapse}th,td{padding:4px 2px}
-      th{border-bottom:1px solid #000}.totals{margin-top:10px;border-top:1px dashed #000;padding-top:10px}
-      .footer{text-align:center;margin-top:15px;font-size:10px;border-top:1px dashed #000;padding-top:10px}
+      th{border-bottom:1px solid #000}.totals{margin-top:10px;border-top:1px dashed #000;padding-top:8px}
+      .footer{text-align:center;margin-top:10px;font-size:10px}
       </style></head><body>
-      <div class="header"><h1>CASA MILKS</h1><p>Contribuyente RIMPE Negocio Popular</p>
-      <p>Latacunga - Ecuador</p><hr><p><strong>NOTA DE VENTA</strong></p>
-      <p>Mesa: ${order.table?.name || '—'}</p>
+      <div class="header">
+      <p><strong>NOTA DE VENTA</strong></p>
+      <p>Mesa: ${order.table?.name || 'Para llevar'}</p>
+      ${order.customerName ? `<p>Cliente: ${order.customerName}</p>` : ''}
       <p>${new Date(order.createdAt).toLocaleString('es-EC')}</p></div>
       <table><thead><tr><th>Producto</th><th>Cant</th><th>P.U.</th><th>Subtotal</th></tr></thead>
       <tbody>${itemsHtml}</tbody></table>
       <div class="totals"><table><tr><td><strong>TOTAL</strong></td><td style="text-align:right"><strong>$${Number(order.total).toFixed(2)}</strong></td></tr></table>
       ${payHtml ? `<table style="margin-top:5px"><tr><th colspan="2">Formas de Pago</th></tr>${payHtml}</table>` : ''}</div>
-      <div class="footer"><p>¡Gracias por tu visita!</p><p>Casa Milks - Latacunga</p></div>
+      <div class="footer"><p>¡Gracias por tu visita!</p></div>
       <script>window.print();window.close();</script></body></html>`);
     w.document.close();
   };
