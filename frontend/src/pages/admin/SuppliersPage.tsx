@@ -92,12 +92,13 @@ export default function SuppliersPage() {
   };
 
   const exportToExcel = async () => {
-    // Generar CSV simple
-    const headers = ['Proveedor,Efectivo,Transferencia,Total,Fecha,Notas'];
+    const BOM = '\uFEFF';
+    const sep = ';';
+    const header = `Proveedor${sep}Efectivo${sep}Transferencia${sep}Total${sep}Fecha${sep}Notas`;
     const rows = payments.map(p =>
-      `"${p.supplierName}",${Number(p.cashAmount).toFixed(2)},${Number(p.transferAmount).toFixed(2)},${Number(p.total).toFixed(2)},"${new Date(p.createdAt).toLocaleDateString('es-EC')}","${p.notes || ''}"`
+      `${p.supplierName}${sep}${Number(p.cashAmount).toFixed(2)}${sep}${Number(p.transferAmount).toFixed(2)}${sep}${Number(p.total).toFixed(2)}${sep}${new Date(p.createdAt).toLocaleDateString('es-EC')}${sep}${(p.notes || '').replace(/;/g, ',')}`
     );
-    const csv = [...headers, ...rows].join('\n');
+    const csv = BOM + header + '\n' + rows.join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

@@ -40,13 +40,45 @@ export default function ReportsPage() {
     if (!currentBranch) return;
     setExporting(true);
     try {
-      const blob = await api.downloadExcel(`/reports/export-excel?branchId=${currentBranch.id}&dateFrom=${dateFrom}&dateTo=${dateTo}`);
-      const url = window.URL.createObjectURL(blob);
+      // Generar CSV completo con los 3 reportes
+      const BOM = '\uFEFF';
+      const sep = ';';
+
+      let csv = BOM;
+
+      // 1. Ventas por producto
+      csv += 'VENTAS POR PRODUCTO\n';
+      csv += `Producto${sep}Unidades Vendidas${sep}Total\n`;
+      salesByProduct.forEach((s: any) => {
+        const name = s.productId || 'Desconocido';
+        csv += `${name}${sep}${s._sum?.quantity || 0}${sep}${Number(s._sum?.subtotal || 0).toFixed(2)}\n`;
+      });
+
+      csv += '\n\n';
+
+      // 2. Ventas por franja horaria
+      csv += 'VENTAS POR FRANJA HORARIA\n';
+      csv += `Hora${sep}Pedidos${sep}Total\n`;
+      salesByTimeSlot.forEach((s: any) => {
+        csv += `${String(s.hour).padStart(2, '0')}:00 - ${String(s.hour).padStart(2, '0')}:59${sep}${s.count}${sep}${Number(s.total).toFixed(2)}\n`;
+      });
+
+      csv += '\n\n';
+
+      // 3. Formas de pago
+      csv += 'FORMAS DE PAGO\n';
+      csv += `Método${sep}Transacciones${sep}Total\n`;
+      paymentsByMethod.forEach((pm: any) => {
+        csv += `${getPaymentMethodLabel(pm.method)}${sep}${pm._count}${sep}${Number(pm._sum?.amount || 0).toFixed(2)}\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `ventas-${dateFrom}-${dateTo}.xlsx`;
+      a.download = `reporte-${dateFrom}-${dateTo}.csv`;
       a.click();
-      window.URL.revokeObjectURL(url);
+      URL.revokeObjectURL(url);
       toast.success('Reporte exportado');
     } catch {
       toast.error('Error al exportar');
