@@ -30,7 +30,7 @@ export const userRepository = {
     return prisma.user.create({ data: createData });
   },
 
-  update: (id: string, data: { name?: string; email?: string; password?: string; active?: boolean; branchId?: string | null }) => {
+  update: (id: string, data: { name?: string; email?: string; password?: string; role?: string; active?: boolean; branchId?: string | null }) => {
     const updateData: any = { ...data };
     if (data.branchId === undefined) {
       delete updateData.branchId;

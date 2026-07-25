@@ -11,6 +11,8 @@ import { useState } from 'react';
 const staffLinks = [
   { to: '/pos', label: 'POS', icon: ShoppingCart },
   { to: '/kitchen', label: 'Cocina', icon: ChefHat },
+  { to: '/admin/inventory', label: 'Inventario', icon: ClipboardList },
+  { to: '/admin/suppliers', label: 'Proveedores', icon: Users },
 ];
 
 const adminLinks = [

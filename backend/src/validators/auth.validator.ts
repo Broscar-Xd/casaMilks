@@ -12,7 +12,7 @@ export const createUserSchema = z.object({
   email: z.string().email('Email inválido'),
   password: z.string().min(6, 'Contraseña debe tener al menos 6 caracteres'),
   role: z.enum(['ADMIN', 'STAFF']).optional(),
-  branchId: z.string().uuid().optional().nullable(),
+  branchId: z.string().uuid().or(z.literal('')).optional().nullable(),
 });
 
 /** Esquema para actualizar un usuario existente. */
@@ -20,8 +20,9 @@ export const updateUserSchema = z.object({
   name: z.string().min(2).optional(),
   email: z.string().email().optional(),
   password: z.string().min(6).optional(),
+  role: z.enum(['ADMIN', 'STAFF']).optional(),
   active: z.boolean().optional(),
-  branchId: z.string().uuid().optional().nullable(),
+  branchId: z.string().uuid().or(z.literal('')).optional().nullable(),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;

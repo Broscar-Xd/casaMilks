@@ -7,8 +7,7 @@ import { createSupplierPaymentSchema } from '../validators/supplier.validator';
 export const supplierRoutes = Router();
 
 supplierRoutes.use(authenticate);
-supplierRoutes.use(authorize('ADMIN'));
 
 supplierRoutes.get('/', supplierController.list);
 supplierRoutes.get('/list', supplierController.listSuppliers);
-supplierRoutes.post('/', validate(createSupplierPaymentSchema), supplierController.create);
+supplierRoutes.post('/', authorize('ADMIN'), validate(createSupplierPaymentSchema), supplierController.create);

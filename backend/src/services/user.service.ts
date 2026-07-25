@@ -14,14 +14,16 @@ export const userService = {
   },
 
   create: async (input: CreateUserInput) => {
-    const exists = await userRepository.findByEmail(input.email);
-    if (exists) throw new AppError('El email ya está registrado');
+    const exists = await userRepository.findByName(input.name);
+    if (exists) throw new AppError('El nombre de usuario ya está registrado');
 
     const hashedPassword = await bcrypt.hash(input.password, 12);
     return userRepository.create({
-      ...input,
+      name: input.name,
+      email: input.email,
       password: hashedPassword,
       role: input.role || 'STAFF',
+      branchId: input.branchId || null,
     });
   },
 
@@ -30,6 +32,9 @@ export const userService = {
     if (!user) throw new AppError('Usuario no encontrado', 404);
 
     const data: any = { ...input };
+    if (data.branchId === '' || data.branchId === undefined) {
+      data.branchId = null;
+    }
     if (input.password) {
       data.password = await bcrypt.hash(input.password, 12);
     }

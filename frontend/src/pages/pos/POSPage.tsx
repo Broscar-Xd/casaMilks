@@ -409,10 +409,10 @@ export default function POSPage() {
               <input type="text" placeholder="Buscar producto..." className="input mb-2 py-2 text-sm"
                 value={search} onChange={e => setSearch(e.target.value)} />
               <div className="flex gap-1.5 overflow-x-auto pb-2">
-                <button onClick={() => setSelectedCategory(null)}
+                <button onClick={() => { setSelectedCategory(null); fetchProducts(); }}
                   className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${!selectedCategory ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-600'}`}>Todos</button>
                 {categories.map(cat => (
-                  <button key={cat.id} onClick={() => setSelectedCategory(cat.id)}
+                  <button key={cat.id} onClick={() => { setSelectedCategory(cat.id); fetchProducts(); }}
                     className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${selectedCategory === cat.id ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-600'}`}>{cat.name}</button>
                 ))}
               </div>
@@ -429,9 +429,9 @@ export default function POSPage() {
                 </div>
               </div>
             </div>
-            <div className="w-full sm:w-72 flex flex-col bg-gray-50 rounded-xl border shrink-0 max-h-64 sm:max-h-none">
-              <div className="border-b px-3 py-2"><h3 className="text-sm font-semibold">Pedido</h3></div>
-              <div className="flex-1 overflow-y-auto px-3 py-1">
+            <div className="w-full sm:w-72 flex flex-col bg-gray-50 rounded-xl border shrink-0 max-h-64 sm:max-h-[70vh]">
+              <div className="border-b px-3 py-2 shrink-0"><h3 className="text-sm font-semibold">Pedido</h3></div>
+              <div className="flex-1 overflow-y-auto px-3 py-1 min-h-0">
                 {cart.length === 0 ? <p className="text-xs text-gray-400 text-center py-4">Selecciona productos</p> : (
                   <div className="space-y-1.5">
                     {cart.map(item => (
@@ -448,7 +448,7 @@ export default function POSPage() {
                   </div>
                 )}
               </div>
-              <div className="border-t px-3 py-2 space-y-2">
+              <div className="border-t px-3 py-2 space-y-2 shrink-0">
                 <div className="flex justify-between text-sm"><span>Total</span><span className="font-bold">{formatCurrency(totalCart)}</span></div>
                 <button onClick={submitOrder} disabled={cart.length === 0 || submitting} className="btn-primary w-full py-2 text-sm">
                   {submitting ? 'Enviando...' : 'Enviar a Cocina'}
@@ -488,9 +488,9 @@ export default function POSPage() {
                 </div>
               </div>
             </div>
-            <div className="w-full sm:w-72 flex flex-col bg-gray-50 rounded-xl border shrink-0 max-h-64 sm:max-h-none">
-              <div className="border-b px-3 py-2"><h3 className="text-sm font-semibold">Nuevos productos</h3></div>
-              <div className="flex-1 overflow-y-auto px-3 py-1">
+            <div className="w-full sm:w-72 flex flex-col bg-gray-50 rounded-xl border shrink-0 max-h-64 sm:max-h-[70vh]">
+              <div className="border-b px-3 py-2 shrink-0"><h3 className="text-sm font-semibold">Nuevos productos</h3></div>
+              <div className="flex-1 overflow-y-auto px-3 py-1 min-h-0">
                 {cart.length === 0 ? <p className="text-xs text-gray-400 text-center py-4">Selecciona productos</p> : (
                   <div className="space-y-1.5">
                     {cart.map(item => (
@@ -507,7 +507,7 @@ export default function POSPage() {
                   </div>
                 )}
               </div>
-              <div className="border-t px-3 py-2">
+              <div className="border-t px-3 py-2 shrink-0">
                 <button onClick={submitAddItems} disabled={cart.length === 0 || submitting} className="btn-primary w-full py-2 text-sm">
                   {submitting ? 'Enviando...' : 'Agregar y enviar a Cocina'}
                 </button>
