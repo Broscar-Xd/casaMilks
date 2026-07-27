@@ -64,7 +64,7 @@ export default function InventoryPage() {
     }
   };
 
-  if (loading) return <div className="flex h-64 items-center justify-center"><Loader2 size={32} className="animate-spin text-brand-500" /></div>;
+  if (loading) return <div className="flex h-64 items-center justify-center"><Loader2 size={32} className="animate-spin text-cocoa-500" /></div>;
 
   if (!currentBranch) return <div className="flex h-64 items-center justify-center"><p className="text-gray-500">Selecciona un local</p></div>;
 

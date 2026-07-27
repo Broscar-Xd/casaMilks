@@ -126,7 +126,7 @@ export default function ReportsPage() {
         {/* Ventas por producto */}
         <div className="card">
           <div className="border-b border-surface-100 px-4 py-3 flex items-center gap-2">
-            <BarChart3 size={18} className="text-brand-500" />
+            <BarChart3 size={18} className="text-cocoa-500" />
             <h2 className="font-semibold text-surface-900">Ventas por Producto</h2>
           </div>
           <div className="p-4">
@@ -151,7 +151,7 @@ export default function ReportsPage() {
         {/* Ventas por franja horaria */}
         <div className="card">
           <div className="border-b border-surface-100 px-4 py-3 flex items-center gap-2">
-            <BarChart3 size={18} className="text-brand-500" />
+            <BarChart3 size={18} className="text-cocoa-500" />
             <h2 className="font-semibold text-surface-900">Ventas por Franja Horaria</h2>
           </div>
           <div className="p-4">
@@ -178,7 +178,7 @@ export default function ReportsPage() {
         {/* Formas de pago */}
         <div className="card">
           <div className="border-b border-surface-100 px-4 py-3 flex items-center gap-2">
-            <BarChart3 size={18} className="text-brand-500" />
+            <BarChart3 size={18} className="text-cocoa-500" />
             <h2 className="font-semibold text-surface-900">Formas de Pago</h2>
           </div>
           <div className="p-4">

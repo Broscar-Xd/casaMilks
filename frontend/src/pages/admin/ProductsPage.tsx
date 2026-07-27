@@ -154,7 +154,7 @@ export default function ProductsPage() {
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 size={32} className="animate-spin text-brand-500" />
+        <Loader2 size={32} className="animate-spin text-cocoa-500" />
       </div>
     );
   }
@@ -260,13 +260,13 @@ export default function ProductsPage() {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="radio" name="requiresPreparation" checked={form.requiresPreparation !== false}
                       onChange={() => setForm({ ...form, requiresPreparation: true })}
-                      className="text-brand-500 focus:ring-brand-500" />
+                      className="text-cocoa-500 focus:ring-cocoa-500" />
                     <span className="text-sm text-gray-700">Sí</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="radio" name="requiresPreparation" checked={form.requiresPreparation === false}
                       onChange={() => setForm({ ...form, requiresPreparation: false })}
-                      className="text-brand-500 focus:ring-brand-500" />
+                      className="text-cocoa-500 focus:ring-cocoa-500" />
                     <span className="text-sm text-gray-700">No</span>
                   </label>
                 </div>

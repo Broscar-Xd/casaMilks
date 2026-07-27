@@ -61,7 +61,7 @@ export default function TablesAdminPage() {
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Error'); }
   };
 
-  if (loading) return <div className="flex h-64 items-center justify-center"><Loader2 size={32} className="animate-spin text-brand-500" /></div>;
+  if (loading) return <div className="flex h-64 items-center justify-center"><Loader2 size={32} className="animate-spin text-cocoa-500" /></div>;
 
   return (
     <div>

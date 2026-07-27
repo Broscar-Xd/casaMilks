@@ -38,7 +38,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 size={32} className="animate-spin text-brand-500" />
+        <Loader2 size={32} className="animate-spin text-cocoa-500" />
       </div>
     );
   }

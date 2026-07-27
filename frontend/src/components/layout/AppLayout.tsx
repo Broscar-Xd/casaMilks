@@ -7,8 +7,8 @@ export function AppLayout() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
+      <div className="flex h-screen items-center justify-center bg-milk-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-cocoa-500 border-t-transparent" />
       </div>
     );
   }

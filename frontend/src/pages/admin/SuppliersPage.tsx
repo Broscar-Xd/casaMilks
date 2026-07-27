@@ -146,7 +146,7 @@ export default function SuppliersPage() {
         </div>
         <div className="kpi-card">
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><Banknote size={16} /></div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cocoa-50 text-cocoa-600"><Banknote size={16} /></div>
             <div>
               <p className="text-xs text-gray-400 font-medium">Total</p>
               <p className="text-lg font-semibold text-gray-900">{formatCurrency(totals.total)}</p>
@@ -196,7 +196,7 @@ export default function SuppliersPage() {
             </thead>
             <tbody className="divide-y divide-surface-100">
               {loading ? (
-                <tr><td colSpan={6} className="text-center py-12"><Loader2 size={24} className="animate-spin mx-auto text-brand-500" /></td></tr>
+                <tr><td colSpan={6} className="text-center py-12"><Loader2 size={24} className="animate-spin mx-auto text-cocoa-500" /></td></tr>
               ) : payments.length === 0 ? (
                 <tr><td colSpan={6} className="text-center py-12 text-gray-400">No hay pagos registrados</td></tr>
               ) : payments.map(p => (

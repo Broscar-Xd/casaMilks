@@ -49,7 +49,7 @@ export function Sidebar() {
       {/* Mobile menu button */}
       <button
         onClick={() => setMobileOpen(!mobileOpen)}
-        className="fixed top-4 left-4 z-50 lg:hidden rounded-lg bg-white p-2 shadow-sm border"
+        className="fixed top-4 left-4 z-50 lg:hidden rounded-xl bg-cocoa-900 p-2.5 text-milk-200 shadow-lg shadow-cocoa-900/30 border border-cocoa-700"
         aria-label="Menú"
       >
         {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -57,49 +57,56 @@ export function Sidebar() {
 
       {/* Overlay */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setMobileOpen(false)} />
+        <div className="fixed inset-0 z-30 bg-cocoa-950/60 backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
       {/* Sidebar */}
       <aside className={`
-        fixed inset-y-0 left-0 z-40 w-64 max-lg:w-full max-lg:max-w-xs bg-white border-r border-surface-200 transform transition-transform duration-200
+        fixed inset-y-0 left-0 z-40 w-64 max-lg:w-full max-lg:max-w-xs bg-gradient-to-b from-cocoa-950 via-cocoa-900 to-cocoa-950 border-r border-cocoa-800/60 transform transition-transform duration-200
         lg:translate-x-0 lg:static lg:z-auto
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="flex h-full flex-col">
+        {/* Subtle cow-spot decoration */}
+        <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-40" viewBox="0 0 300 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <g fill="#f3e0c3">
+            <path opacity="0.03" d="M40 60c25-18 60-12 70 15s-10 50-36 54-48-12-51-36 4-24 17-33z" />
+            <path opacity="0.03" d="M190 520c20-14 50-8 56 15s-14 42-38 40-36-20-30-40 8-10 12-15z" />
+            <path opacity="0.02" d="M70 300c18-12 45-6 52 14s-10 38-34 36-34-18-28-36 6-10 10-14z" />
+          </g>
+        </svg>
+
+        <div className="relative flex h-full flex-col">
           {/* Logo */}
-          <div className="flex h-14 items-center gap-3 px-5 border-b border-surface-100">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-soft overflow-hidden">
+          <div className="flex h-16 items-center gap-3 px-5 border-b border-white/10">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-milk-50 shadow-lg shadow-black/30 overflow-hidden ring-2 ring-milk-200/20">
               <img src="/CasaMilksLogo.jpeg" alt="Casa Milks" className="w-8 h-8 object-contain" />
             </div>
             <div>
-              <h1 className="text-sm font-semibold text-surface-900">Casa Milks</h1>
-              <p className="text-[10px] text-surface-400 font-medium">Sistema POS</p>
+              <h1 className="text-sm font-bold text-milk-50 tracking-tight">Casa Milks</h1>
+              <p className="text-[10px] text-milk-300/60 font-medium">Sistema POS</p>
             </div>
           </div>
 
           {/* Branch selector */}
-          <div className="relative px-3 py-2.5 border-b border-surface-100">
+          <div className="relative px-3 py-3 border-b border-white/10">
             <button
               onClick={() => setBranchOpen(!branchOpen)}
-              className="flex w-full items-center justify-between rounded-xl bg-surface-50 px-3 py-2 text-sm text-surface-600 hover:bg-surface-100 transition-colors"
+              className="flex w-full items-center justify-between rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-milk-200 hover:bg-white/10 transition-colors"
             >
               <div className="flex items-center gap-2 min-w-0">
-                <Store size={15} className="shrink-0 text-surface-400" />
+                <Store size={15} className="shrink-0 text-milk-300/70" />
                 <span className="truncate">{currentBranch?.name || 'Seleccionar local'}</span>
               </div>
               <ChevronDown size={13} className={`shrink-0 transition-transform duration-200 ${branchOpen ? 'rotate-180' : ''}`} />
             </button>
             {branchOpen && (
-              <div className="absolute left-3 right-3 top-full z-10 mt-1.5 rounded-xl border border-surface-200 bg-white shadow-elevated">
-                {branches.map((branch, idx) => (
+              <div className="absolute left-3 right-3 top-full z-10 mt-1.5 rounded-xl border border-cocoa-700 bg-cocoa-900 shadow-2xl shadow-black/40 overflow-hidden">
+                {branches.map((branch) => (
                   <button
                     key={branch.id}
                     onClick={() => { setCurrentBranch(branch); setBranchOpen(false); }}
                     className={`w-full px-3 py-2.5 text-left text-sm transition-colors
-                      ${idx === 0 ? 'rounded-t-xl' : ''}
-                      ${idx === branches.length - 1 ? 'rounded-b-xl' : ''}
-                      ${currentBranch?.id === branch.id ? 'bg-brand-50 text-brand-700 font-medium' : 'text-surface-600 hover:bg-surface-50'}`}
+                      ${currentBranch?.id === branch.id ? 'bg-white/10 text-milk-100 font-medium' : 'text-milk-300/80 hover:bg-white/5'}`}
                   >
                     {branch.name}
                   </button>
@@ -109,7 +116,7 @@ export function Sidebar() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
+          <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
             {links.map((link) => (
               <Link
                 key={link.to}
@@ -117,8 +124,8 @@ export function Sidebar() {
                 onClick={() => setMobileOpen(false)}
                 className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150 relative ${
                   isActive(link.to)
-                    ? 'bg-brand-50 text-brand-700 shadow-soft before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-1 before:rounded-r-full before:bg-brand-500'
-                    : 'text-surface-500 hover:bg-surface-50 hover:text-surface-700'
+                    ? 'bg-gradient-to-r from-cocoa-500/25 to-cocoa-500/10 text-milk-50 shadow-inner before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-1 before:rounded-r-full before:bg-milk-400'
+                    : 'text-milk-300/70 hover:bg-white/5 hover:text-milk-100'
                 }`}
               >
                 <link.icon size={17} />
@@ -128,19 +135,19 @@ export function Sidebar() {
           </nav>
 
           {/* User info & logout */}
-          <div className="border-t border-surface-100 px-3 py-3">
+          <div className="border-t border-white/10 px-3 py-3">
             <div className="flex items-center gap-2.5 mb-2 px-1">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-brand-600 font-semibold text-xs">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-cocoa-500 to-cocoa-700 text-milk-50 font-semibold text-xs ring-2 ring-milk-300/20">
                 {user?.name?.charAt(0) || user?.email?.charAt(0) || 'U'}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-surface-800 truncate">{user?.email}</p>
-                <p className="text-[10px] text-surface-400 font-medium">{isAdmin ? 'Administrador' : 'Personal'}</p>
+                <p className="text-xs font-medium text-milk-100 truncate">{user?.email}</p>
+                <p className="text-[10px] text-milk-300/50 font-medium">{isAdmin ? 'Administrador' : 'Personal'}</p>
               </div>
             </div>
             <button
               onClick={logout}
-              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-surface-400 hover:bg-red-50 hover:text-red-500 transition-all duration-150"
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-milk-300/60 hover:bg-red-500/15 hover:text-red-300 transition-all duration-150"
             >
               <LogOut size={16} />
               Cerrar sesión

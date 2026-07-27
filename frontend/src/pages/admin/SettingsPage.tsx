@@ -14,7 +14,7 @@ export default function SettingsPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="card p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-100 text-brand-600">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cocoa-100 text-cocoa-600">
               <Info size={20} />
             </div>
             <h2 className="font-semibold text-gray-900">Información del Sistema</h2>
