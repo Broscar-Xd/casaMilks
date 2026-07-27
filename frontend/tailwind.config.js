@@ -28,9 +28,46 @@ export default {
           800: '#1e293b',
           900: '#0f172a',
         },
+        // Paleta extraída del logo Casa Milks
+        milk: {
+          50: '#fdf9f2',
+          100: '#faf1e3',
+          200: '#f3e0c3',
+          300: '#eacb9e',
+          400: '#deb078',
+          500: '#d1965a',
+        },
+        cocoa: {
+          50: '#f7f1eb',
+          100: '#eadfd2',
+          200: '#d5bfa6',
+          300: '#bd9976',
+          400: '#a5764e',
+          500: '#8b5a2b',
+          600: '#794c25',
+          700: '#633d1f',
+          800: '#4b2e18',
+          900: '#362010',
+          950: '#211309',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+      },
+      keyframes: {
+        shake: {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '20%, 60%': { transform: 'translateX(-5px)' },
+          '40%, 80%': { transform: 'translateX(5px)' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-12px)' },
+        },
+      },
+      animation: {
+        shake: 'shake 0.4s ease-in-out',
+        float: 'float 5s ease-in-out infinite',
       },
       boxShadow: {
         'soft': '0 1px 3px 0 rgba(0,0,0,0.04), 0 1px 2px -1px rgba(0,0,0,0.06)',
