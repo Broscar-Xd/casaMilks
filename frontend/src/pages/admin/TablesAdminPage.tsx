@@ -3,6 +3,8 @@ import { useBranch } from '@/contexts/BranchContext';
 import { api } from '@/services/api';
 import toast from 'react-hot-toast';
 import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Pagination } from '@/components/ui/Pagination';
+import { usePagination } from '@/hooks/usePagination';
 import type { TableItem, ApiResponse } from '@/types';
 
 export default function TablesAdminPage() {
@@ -63,6 +65,8 @@ export default function TablesAdminPage() {
 
   if (loading) return <div className="flex h-64 items-center justify-center"><Loader2 size={32} className="animate-spin text-cocoa-500" /></div>;
 
+  const { page, totalPages, total, pageSize, paginatedItems, setPage } = usePagination(tables, 10);
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
@@ -80,7 +84,7 @@ export default function TablesAdminPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-100">
-            {tables.map(table => (
+            {paginatedItems.map(table => (
               <tr key={table.id} className="table-row">
                 <td className="table-cell font-medium text-surface-900">{table.name}</td>
                 <td className="table-cell text-center">
@@ -97,6 +101,7 @@ export default function TablesAdminPage() {
             ))}
           </tbody>
         </table>
+        <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPageChange={setPage} />
       </div>
       {showModal && (
         <div className="modal-overlay">

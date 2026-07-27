@@ -4,6 +4,8 @@ import { api } from '@/services/api';
 import { formatCurrency } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import { Plus, Search, Loader2, X, Download, Banknote, Smartphone } from 'lucide-react';
+import { Pagination } from '@/components/ui/Pagination';
+import { usePagination } from '@/hooks/usePagination';
 import type { ApiResponse } from '@/types';
 
 interface SupplierPayment {
@@ -59,6 +61,8 @@ export default function SuppliersPage() {
     transfer: payments.reduce((s, p) => s + Number(p.transferAmount), 0),
     total: payments.reduce((s, p) => s + Number(p.total), 0),
   };
+
+  const { page, totalPages, total, pageSize, paginatedItems, setPage } = usePagination(payments, 10);
 
   const openModal = () => {
     setForm({ supplierName: '', cashAmount: '0', transferAmount: '0', notes: '' });
@@ -199,7 +203,7 @@ export default function SuppliersPage() {
                 <tr><td colSpan={6} className="text-center py-12"><Loader2 size={24} className="animate-spin mx-auto text-cocoa-500" /></td></tr>
               ) : payments.length === 0 ? (
                 <tr><td colSpan={6} className="text-center py-12 text-gray-400">No hay pagos registrados</td></tr>
-              ) : payments.map(p => (
+              ) : paginatedItems.map(p => (
                 <tr key={p.id} className="table-row">
                   <td className="table-cell font-medium text-surface-900">{p.supplierName}</td>
                   <td className="table-cell text-right text-surface-900">{formatCurrency(Number(p.cashAmount))}</td>
@@ -214,6 +218,7 @@ export default function SuppliersPage() {
             </tbody>
           </table>
         </div>
+        <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPageChange={setPage} />
       </div>
 
       {/* Modal */}

@@ -4,6 +4,8 @@ import { useBranch } from '@/contexts/BranchContext';
 import { formatCurrency } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import { Plus, Pencil, Loader2, Search, ChefHat, Trash2, PlusCircle } from 'lucide-react';
+import { Pagination } from '@/components/ui/Pagination';
+import { usePagination } from '@/hooks/usePagination';
 import type { Product, Category, Ingredient, ApiResponse } from '@/types';
 
 export default function ProductsPage() {
@@ -151,6 +153,8 @@ export default function ProductsPage() {
     p.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  const { page, totalPages, total, pageSize, paginatedItems, setPage } = usePagination(filtered, 12);
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -198,7 +202,7 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-100">
-              {filtered.map((product) => (
+              {paginatedItems.map((product) => (
                 <tr key={product.id} className="table-row">
                   <td className="table-cell font-medium text-surface-900">{product.name}</td>
                   <td className="table-cell text-surface-400">{product.category?.name || '—'}</td>
@@ -222,6 +226,7 @@ export default function ProductsPage() {
             </tbody>
           </table>
         </div>
+        <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPageChange={setPage} />
       </div>
 
       {/* Modal */}

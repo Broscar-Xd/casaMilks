@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { api } from '@/services/api';
 import toast from 'react-hot-toast';
 import { Plus, Pencil, Loader2 } from 'lucide-react';
+import { Pagination } from '@/components/ui/Pagination';
+import { usePagination } from '@/hooks/usePagination';
 import type { Ingredient, ApiResponse } from '@/types';
 
 export default function IngredientsPage() {
@@ -55,6 +57,8 @@ export default function IngredientsPage() {
 
   if (loading) return <div className="flex h-64 items-center justify-center"><Loader2 size={32} className="animate-spin text-cocoa-500" /></div>;
 
+  const { page, totalPages, total, pageSize, paginatedItems, setPage } = usePagination(ingredients, 10);
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
@@ -76,7 +80,7 @@ export default function IngredientsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-100">
-            {ingredients.map((ing) => (
+            {paginatedItems.map((ing) => (
               <tr key={ing.id} className="table-row">
                 <td className="table-cell font-medium text-surface-900">{ing.name}</td>
                 <td className="table-cell text-surface-400">{ing.unit}</td>
@@ -88,6 +92,7 @@ export default function IngredientsPage() {
             ))}
           </tbody>
         </table>
+        <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPageChange={setPage} />
       </div>
 
       {showModal && (

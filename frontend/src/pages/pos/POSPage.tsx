@@ -301,58 +301,90 @@ export default function POSPage() {
 
   return (
     <div className="flex-1 flex flex-col">
-      {/* Botón para llevar */}
-      <button onClick={openTakeoutModal} className="btn-primary mb-4 w-full sm:w-auto self-start">
-        <Package size={18} /> Nuevo Pedido para llevar
-      </button>
-
-      {/* Encabezado */}
-      <div className="page-header flex-row items-center justify-between mb-4">
-        <h1 className="page-title">Mapa de Mesas</h1>
-        <div className="flex items-center gap-3">
-          <StatusLegend color="bg-emerald-500" label="Libre" />
-          <StatusLegend color="bg-amber-500" label="Ocupada" />
-          <StatusLegend color="bg-red-500" label="Pendiente" />
+      {/* Header con CTA */}
+      <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="page-header mb-0">
+          <h1 className="page-title">Mapa de Mesas</h1>
+          <p className="page-subtitle">{currentBranch.name} — {tables.length} mesas</p>
         </div>
+        <button onClick={openTakeoutModal} className="btn-primary self-start sm:self-auto">
+          <Package size={18} /> Pedido para llevar
+        </button>
+      </div>
+
+      {/* Leyenda de estados */}
+      <div className="mb-4 flex items-center gap-2 flex-wrap">
+        <StatusLegend color="bg-emerald-400" label="Libre" />
+        <StatusLegend color="bg-amber-400" label="Ocupada" />
+        <StatusLegend color="bg-red-400" label="Por cobrar" />
       </div>
 
       {/* Grid de mesas */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
           {tables.map((table) => {
             return (
               <div key={table.id}>
                 {table.status === 'FREE' && (
-                  <button onClick={() => openTableForOrder(table)} className="group relative rounded-2xl bg-white shadow-sm shadow-cocoa-900/5 hover:shadow-lg hover:shadow-cocoa-900/10 border border-milk-200/90 hover:border-emerald-300 hover:-translate-y-1 p-4 flex flex-col items-center gap-2.5 w-full transition-all duration-200 active:scale-[0.97] cursor-pointer">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100 flex items-center justify-center text-emerald-600 font-semibold text-sm shadow-sm group-hover:shadow-md group-hover:scale-105 transition-all">
-                      {getTableIcon(table.name)}
+                  <button
+                    onClick={() => openTableForOrder(table)}
+                    className="group relative w-full overflow-hidden rounded-2xl border-2 border-emerald-200/70 bg-white p-5 flex flex-col items-center gap-2 shadow-sm shadow-cocoa-900/5 transition-all duration-200 hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 active:scale-[0.97] cursor-pointer"
+                  >
+                    {/* Barra de estado superior */}
+                    <span className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-400 to-emerald-500" />
+                    {/* Ícono de mesa */}
+                    <div className="relative">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-white font-bold text-sm shadow-md shadow-emerald-500/30 transition-transform duration-200 group-hover:scale-110 group-hover:rotate-3">
+                        {getTableIcon(table.name)}
+                      </div>
+                      {/* Punto de pulso */}
+                      <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                        <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                      </span>
                     </div>
-                    <span className="text-sm font-semibold text-cocoa-900">{table.name}</span>
-                    <span className="badge-ready">Libre</span>
-                    <span className="text-[11px] text-cocoa-300 group-hover:text-cocoa-400 transition-colors">Tocar para pedir</span>
+                    <span className="text-sm font-bold text-cocoa-900">{table.name}</span>
+                    <span className="badge-ready">Disponible</span>
+                    <span className="text-[11px] font-medium text-cocoa-300 opacity-0 group-hover:opacity-100 transition-opacity duration-200">Tocar para abrir pedido</span>
                   </button>
                 )}
+
                 {table.status === 'OCCUPIED' && (
-                  <div className="relative rounded-2xl bg-white shadow-sm shadow-cocoa-900/5 border border-milk-200/90 border-t-2 border-t-amber-400 p-4 flex flex-col items-center gap-2.5 w-full">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center text-amber-600 font-semibold text-sm shadow-sm">
+                  <div className="relative w-full overflow-hidden rounded-2xl border-2 border-amber-200/70 bg-white p-5 flex flex-col items-center gap-2 shadow-sm shadow-cocoa-900/5">
+                    <span className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-amber-400 to-amber-500" />
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white font-bold text-sm shadow-md shadow-amber-500/30">
                       {getTableIcon(table.name)}
                     </div>
-                    <span className="text-sm font-semibold text-cocoa-900">{table.name}</span>
+                    <span className="text-sm font-bold text-cocoa-900">{table.name}</span>
                     <span className="badge-pending">Ocupada</span>
-                    <div className="flex gap-2 mt-1 w-full">
-                      <button onClick={() => openExistingTable(table)} className="btn-secondary text-xs flex-1 py-1.5 px-2"><ShoppingCart size={13} /> Add</button>
-                      <button onClick={() => openCloseTable(table)} className="btn-primary text-xs flex-1 py-1.5 px-2"><Receipt size={13} /> Cobrar</button>
+                    <div className="flex gap-2 mt-1.5 w-full">
+                      <button onClick={() => openExistingTable(table)} className="btn-secondary flex-1 py-1.5 px-2 text-xs"><ShoppingCart size={13} /> Agregar</button>
+                      <button onClick={() => openCloseTable(table)} className="btn-primary flex-1 py-1.5 px-2 text-xs"><Receipt size={13} /> Cobrar</button>
                     </div>
                   </div>
                 )}
+
                 {table.status === 'PENDING_PAYMENT' && (
-                  <button onClick={() => openCloseTable(table)} className="group relative rounded-2xl bg-white shadow-sm shadow-cocoa-900/5 hover:shadow-lg hover:shadow-cocoa-900/10 border border-milk-200/90 hover:border-red-300 hover:-translate-y-1 p-4 flex flex-col items-center gap-2.5 w-full transition-all duration-200 active:scale-[0.97] cursor-pointer">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center text-red-600 font-semibold text-sm shadow-sm group-hover:shadow-md group-hover:scale-105 transition-all">
-                      {getTableIcon(table.name)}
+                  <button
+                    onClick={() => openCloseTable(table)}
+                    className="group relative w-full overflow-hidden rounded-2xl border-2 border-red-200/70 bg-gradient-to-b from-red-50/50 to-white p-5 flex flex-col items-center gap-2 shadow-sm shadow-cocoa-900/5 transition-all duration-200 hover:border-red-400 hover:shadow-lg hover:shadow-red-500/10 hover:-translate-y-1 active:scale-[0.97] cursor-pointer"
+                  >
+                    <span className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-red-400 to-red-500" />
+                    <div className="relative">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-red-400 to-red-600 text-white font-bold text-sm shadow-md shadow-red-500/30 transition-transform duration-200 group-hover:scale-110">
+                        {getTableIcon(table.name)}
+                      </div>
+                      {/* Alerta parpadeante */}
+                      <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-60" />
+                        <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-red-500 ring-2 ring-white" />
+                      </span>
                     </div>
-                    <span className="text-sm font-semibold text-cocoa-900">{table.name}</span>
-                    <span className="badge-cancelled">Pendiente</span>
-                    <span className="text-[11px] text-cocoa-300 group-hover:text-cocoa-400 transition-colors">Tocar para cobrar</span>
+                    <span className="text-sm font-bold text-cocoa-900">{table.name}</span>
+                    <span className="badge-cancelled">Por cobrar</span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500 px-3 py-1 text-[11px] font-semibold text-white shadow-md shadow-red-500/30 group-hover:shadow-lg group-hover:scale-105 transition-all">
+                      <Receipt size={12} /> Cobrar ahora
+                    </span>
                   </button>
                 )}
               </div>
@@ -361,20 +393,26 @@ export default function POSPage() {
         </div>
       </div>
 
+      {/* Pedidos para llevar */}
       {takeoutOrders.length > 0 && (
         <>
           <div className="divider" />
-          <h2 className="text-sm font-semibold text-cocoa-900 mb-3 flex items-center gap-2"><Package size={16} className="text-cocoa-400" /> Pedidos para llevar</h2>
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-cocoa-900">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cocoa-500 to-cocoa-700 text-milk-50 shadow-sm"><Package size={14} /></span>
+            Pedidos para llevar
+            <span className="ml-1 rounded-full bg-cocoa-100 px-2 py-0.5 text-[11px] font-semibold text-cocoa-700">{takeoutOrders.length}</span>
+          </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-4">
             {takeoutOrders.map((order) => (
-              <div key={order.id} className="relative rounded-2xl bg-white shadow-sm shadow-cocoa-900/5 border border-milk-200/90 p-4 flex flex-col items-center gap-2.5 w-full">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cocoa-50 to-cocoa-100 flex items-center justify-center text-cocoa-600 shadow-sm">
-                  <Package size={20} />
+              <div key={order.id} className="relative w-full overflow-hidden rounded-2xl border-2 border-cocoa-200/70 bg-white p-5 flex flex-col items-center gap-2 shadow-sm shadow-cocoa-900/5">
+                <span className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-cocoa-500 to-cocoa-700" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cocoa-500 to-cocoa-700 text-milk-50 shadow-md shadow-cocoa-600/30">
+                  <Package size={22} />
                 </div>
-                <span className="text-sm font-semibold text-cocoa-900">{order.customerName || 'Cliente'}</span>
-                <span className="text-xs font-medium text-cocoa-500">{formatCurrency(Number(order.total))}</span>
+                <span className="text-sm font-bold text-cocoa-900 text-center leading-tight">{order.customerName || 'Cliente'}</span>
+                <span className="text-sm font-bold text-cocoa-600">{formatCurrency(Number(order.total))}</span>
                 <span className="badge-pending">En preparación</span>
-                <div className="flex gap-2 mt-1 w-full">
+                <div className="flex gap-2 mt-1.5 w-full">
                   <button onClick={async () => {
                     const res = await api.get<ApiResponse<Order>>(`/orders/${order.id}`);
                     if (res.success && res.data) {
@@ -382,7 +420,7 @@ export default function POSPage() {
                       setShowAddItemsModal(true);
                       fetchProducts();
                     }
-                  }} className="btn-secondary text-xs flex-1 py-1.5 px-2"><ShoppingCart size={13} /> Add</button>
+                  }} className="btn-secondary flex-1 py-1.5 px-2 text-xs"><ShoppingCart size={13} /> Agregar</button>
                   <button onClick={async () => {
                     const res = await api.get<ApiResponse<Order>>(`/orders/${order.id}`);
                     if (res.success && res.data) {
@@ -390,7 +428,7 @@ export default function POSPage() {
                       setPayments([]);
                       setShowCloseModal(true);
                     }
-                  }} className="btn-primary text-xs flex-1 py-1.5 px-2"><Receipt size={13} /> Cobrar</button>
+                  }} className="btn-primary flex-1 py-1.5 px-2 text-xs"><Receipt size={13} /> Cobrar</button>
                 </div>
               </div>
             ))}

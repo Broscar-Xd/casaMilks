@@ -3,6 +3,8 @@ import { useBranch } from '@/contexts/BranchContext';
 import { api } from '@/services/api';
 import toast from 'react-hot-toast';
 import { Loader2, AlertTriangle, Plus, Minus, History } from 'lucide-react';
+import { Pagination } from '@/components/ui/Pagination';
+import { usePagination } from '@/hooks/usePagination';
 import type { InventoryItem, ApiResponse, Ingredient } from '@/types';
 
 export default function InventoryPage() {
@@ -68,6 +70,8 @@ export default function InventoryPage() {
 
   if (!currentBranch) return <div className="flex h-64 items-center justify-center"><p className="text-gray-500">Selecciona un local</p></div>;
 
+  const { page, totalPages, total, pageSize, paginatedItems, setPage } = usePagination(items, 10);
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
@@ -110,7 +114,7 @@ export default function InventoryPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-100">
-            {items.map((item) => {
+            {paginatedItems.map((item) => {
               const qty = Number(item.quantity);
               const min = Number(item.ingredient.minStock);
               return (
@@ -133,6 +137,7 @@ export default function InventoryPage() {
             })}
           </tbody>
         </table>
+        <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPageChange={setPage} />
       </div>
 
       {/* Modal Ajuste */}

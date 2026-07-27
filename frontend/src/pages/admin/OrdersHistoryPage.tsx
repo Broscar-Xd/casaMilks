@@ -4,6 +4,8 @@ import { api } from '@/services/api';
 import { formatCurrency, getPaymentMethodLabel, getOrderStatusLabel } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import { Search, Loader2, Eye, X, Filter } from 'lucide-react';
+import { Pagination } from '@/components/ui/Pagination';
+import { usePagination } from '@/hooks/usePagination';
 import type { Order, ApiResponse, PaymentMethod } from '@/types';
 
 type PaymentBreakdown = { method: string; amount: number; reference: string | null }[];
@@ -66,6 +68,8 @@ export default function OrdersHistoryPage() {
   const filtered = searchId
     ? orders.filter((o) => o.id.toLowerCase().includes(searchId.toLowerCase()))
     : orders;
+
+  const { page, totalPages, total, pageSize, paginatedItems, setPage } = usePagination(filtered, 12);
 
   // Agrupar pagos por método
   const paymentBreakdown = (order: Order): PaymentBreakdown => {
@@ -145,7 +149,7 @@ export default function OrdersHistoryPage() {
               {filtered.length === 0 && !loading && (
                 <tr><td colSpan={7} className="text-center py-12 text-gray-400">No hay pedidos en este período</td></tr>
               )}
-              {filtered.map((order) => {
+              {paginatedItems.map((order) => {
                 const breakdown = paymentBreakdown(order);
                 return (
                   <tr key={order.id} className="table-row">
@@ -189,6 +193,7 @@ export default function OrdersHistoryPage() {
             </tbody>
           </table>
         </div>
+        <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPageChange={setPage} />
       </div>
 
       {/* Modal detalle */}
