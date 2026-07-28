@@ -20,7 +20,7 @@ export const categoryRepository = {
           include: {
             sourceCategory: true,
             comboLineProducts: {
-              include: { product: { select: { id: true, name: true, price: true } } },
+              include: { product: { select: { id: true, name: true, price: true, categoryId: true, category: { select: { name: true } } } } },
             },
           },
           orderBy: { sortOrder: 'asc' },
@@ -41,7 +41,7 @@ export const categoryRepository = {
       include: {
         sourceCategory: true,
         comboLineProducts: {
-          include: { product: { select: { id: true, name: true, price: true } } },
+          include: { product: { select: { id: true, name: true, price: true, categoryId: true, category: { select: { name: true } } } } },
         },
       },
       orderBy: { sortOrder: 'asc' },

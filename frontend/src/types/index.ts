@@ -99,6 +99,8 @@ export interface ComboProduct {
   id: string;
   name: string;
   price: number;
+  categoryId?: string;
+  category?: { name: string };
 }
 
 export interface OrderItemCombo {

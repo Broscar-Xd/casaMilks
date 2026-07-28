@@ -254,6 +254,10 @@ export default function POSPage() {
     );
   };
 
+  const removeFromCart = (productId: string) => {
+    setCart(prev => prev.filter(item => item.product.id !== productId));
+  };
+
   const totalCart = cart.reduce((s, i) => s + i.subtotal, 0);
 
   const submitOrder = async () => {
@@ -589,6 +593,9 @@ export default function POSPage() {
                           <button onClick={() => updateQty(item.product.id, -1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
                           <span className="w-6 text-center font-semibold text-cocoa-800">{item.quantity}</span>
                           <button onClick={() => updateQty(item.product.id, 1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Plus size={12} /></button>
+                          <button onClick={() => removeFromCart(item.product.id)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors" title="Eliminar">
+                            <Trash2 size={12} />
+                          </button>
                         </div>
                         <span className="w-16 text-right font-semibold text-cocoa-700">{formatCurrency(item.subtotal)}</span>
                       </div>
@@ -659,6 +666,9 @@ export default function POSPage() {
                           <button onClick={() => updateQty(item.product.id, -1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
                           <span className="w-6 text-center font-semibold text-cocoa-800">{item.quantity}</span>
                           <button onClick={() => updateQty(item.product.id, 1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Plus size={12} /></button>
+                          <button onClick={() => removeFromCart(item.product.id)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors" title="Eliminar">
+                            <Trash2 size={12} />
+                          </button>
                         </div>
                         <span className="w-16 text-right font-semibold text-cocoa-700">{formatCurrency(item.subtotal)}</span>
                       </div>
@@ -836,36 +846,52 @@ export default function POSPage() {
                     </span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {(line.comboLineProducts || []).map(clp => {
-                      const opt = clp.product;
-                      const isSelected = (comboSelections[line.id] || []).includes(opt.id);
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => toggleComboSelection(line.id, opt.id, line.maxSelect)}
-                          className={`relative flex flex-col items-center gap-1 rounded-xl border-2 p-3 text-center transition-all duration-150 ${
-                            isSelected
-                              ? 'border-cocoa-500 bg-cocoa-50 shadow-md shadow-cocoa-500/20'
-                              : 'border-milk-200 bg-white hover:border-cocoa-300 hover:shadow-sm'
-                          }`}
-                        >
-                          <div className={`flex h-9 w-9 items-center justify-center rounded-lg text-sm font-bold ${
-                            isSelected ? 'bg-cocoa-600 text-milk-50' : 'bg-milk-100 text-cocoa-500'
-                          }`}>
-                            {opt.name.charAt(0)}
+                    {/* Group products by category */}
+                    {(() => {
+                      const groups = new Map<string, NonNullable<typeof line.comboLineProducts>>();
+                      (line.comboLineProducts || []).forEach(clp => {
+                        const catName = clp.product.category?.name || 'Otros';
+                        if (!groups.has(catName)) groups.set(catName, []);
+                        groups.get(catName)!.push(clp);
+                      });
+                      return Array.from(groups.entries()).map(([catName, clps]) => (
+                        <div key={catName} className="col-span-full space-y-1.5">
+                          <p className="text-[11px] font-semibold text-cocoa-400 uppercase tracking-wider">{catName}</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {(clps || []).map(clp => {
+                              const opt = clp.product;
+                              const isSelected = (comboSelections[line.id] || []).includes(opt.id);
+                              return (
+                                <button
+                                  key={opt.id}
+                                  type="button"
+                                  onClick={() => toggleComboSelection(line.id, opt.id, line.maxSelect)}
+                                  className={`relative flex items-center gap-2 rounded-xl border-2 px-3 py-2.5 text-left transition-all duration-150 ${
+                                    isSelected
+                                      ? 'border-cocoa-500 bg-cocoa-50 shadow-md shadow-cocoa-500/20'
+                                      : 'border-milk-200 bg-white hover:border-cocoa-300 hover:shadow-sm'
+                                  }`}
+                                >
+                                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-bold ${
+                                    isSelected ? 'bg-cocoa-600 text-milk-50' : 'bg-milk-100 text-cocoa-400'
+                                  }`}>
+                                    {isSelected ? '✓' : ''}
+                                  </span>
+                                  <span className={`text-sm font-medium ${isSelected ? 'text-cocoa-900' : 'text-cocoa-600'}`}>
+                                    {opt.name}
+                                  </span>
+                                  {isSelected && (
+                                    <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-cocoa-600 text-milk-50 text-[9px] font-bold shadow-md">
+                                      ✓
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
                           </div>
-                          <span className={`text-xs font-medium ${isSelected ? 'text-cocoa-900' : 'text-cocoa-600'}`}>
-                            {opt.name}
-                          </span>
-                          {isSelected && (
-                            <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-cocoa-600 text-milk-50 shadow-md text-[10px] font-bold">
-                              ✓
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
+                        </div>
+                      ));
+                    })()}
                     {(line.comboLineProducts || []).length === 0 && (
                       <p className="text-xs text-cocoa-300 col-span-full text-center py-3">
                         No hay productos disponibles en esta categoría

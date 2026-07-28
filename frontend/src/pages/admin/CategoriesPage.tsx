@@ -346,63 +346,57 @@ export default function CategoriesPage() {
                           </div>
                         )}
 
-                        {/* Product picker — show filtered products */}
+                        {/* Product picker — only shows when a category filter is selected */}
                         <div className="border border-milk-200/70 rounded-xl bg-milk-50/50 p-2.5">
                           {(() => {
                             const filterCatId = browsingCategory[line.id];
-                            const productsToShow = filterCatId
-                              ? categoryProducts[filterCatId]
-                              : Object.values(categoryProducts).flat();
-
-                            if (!productsToShow || productsToShow.length === 0) {
-                              return <p className="text-xs text-cocoa-300 text-center py-3">
-                                {filterCatId ? 'No hay productos en esta categoría' : 'Carga productos en las categorías para verlos aquí'}
-                              </p>;
+                            if (!filterCatId) {
+                              return (
+                                <div className="text-center py-3">
+                                  <p className="text-xs text-cocoa-400 mb-1">Selecciona una categoría arriba para ver sus productos</p>
+                                  <p className="text-[10px] text-cocoa-300">Los productos que ya seleccionaste se muestran arriba como chips</p>
+                                </div>
+                              );
                             }
 
-                            // Group by category for "All categories" view
-                            const grouped: Record<string, ComboProduct[]> = filterCatId
-                              ? { '': productsToShow }
-                              : Object.fromEntries(
-                                  (allCategories
-                                    .filter(c => c.id !== editing?.id)
-                                    .map(c => [c.name, categoryProducts[c.id] || []] as [string, ComboProduct[]])
-                                    .filter(([, prods]) => prods.length > 0))
-                                );
+                            const productsToShow = categoryProducts[filterCatId];
+                            if (!productsToShow) {
+                              return <div className="flex items-center justify-center gap-2 text-xs text-cocoa-300 py-3">
+                                <Loader2 size={12} className="animate-spin" /> Cargando productos...
+                              </div>;
+                            }
+                            if (productsToShow.length === 0) {
+                              return <p className="text-xs text-cocoa-300 text-center py-3">No hay productos en esta categoría</p>;
+                            }
 
-                            return Object.entries(grouped).map(([groupName, prods]) => (
-                              <div key={groupName}>
-                                {!filterCatId && groupName && (
-                                  <p className="text-[10px] text-cocoa-300 font-medium mb-1 mt-2 first:mt-0">{groupName}</p>
-                                )}
-                                <div className="flex flex-wrap gap-1.5">
-                                  {prods.map(prod => {
-                                    const selected = (line.productIds || []).includes(prod.id);
-                                    return (
-                                      <button
-                                        key={prod.id}
-                                        type="button"
-                                        onClick={() => {
-                                          const current = line.productIds || [];
-                                          const next = selected
-                                            ? current.filter(id => id !== prod.id)
-                                            : [...current, prod.id];
-                                          updateComboLine(idx, 'productIds', next);
-                                        }}
-                                        className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
-                                          selected
-                                            ? 'bg-cocoa-600 text-milk-50 shadow-sm ring-1 ring-cocoa-400'
-                                            : 'bg-white text-cocoa-600 border border-cocoa-200 hover:border-cocoa-400'
-                                        }`}
-                                      >
-                                        {selected && <span className="text-milk-300">✓</span>}
-                                        {prod.name}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
+                            return (
+                              <div className="flex flex-wrap gap-1.5">
+                                {productsToShow.map(prod => {
+                                  const selected = (line.productIds || []).includes(prod.id);
+                                  return (
+                                    <button
+                                      key={prod.id}
+                                      type="button"
+                                      onClick={() => {
+                                        const current = line.productIds || [];
+                                        const next = selected
+                                          ? current.filter(id => id !== prod.id)
+                                          : [...current, prod.id];
+                                        updateComboLine(idx, 'productIds', next);
+                                      }}
+                                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                                        selected
+                                          ? 'bg-cocoa-600 text-milk-50 shadow-sm ring-1 ring-cocoa-400'
+                                          : 'bg-white text-cocoa-600 border border-cocoa-200 hover:border-cocoa-400'
+                                      }`}
+                                    >
+                                      {selected && <span className="text-milk-300">✓</span>}
+                                      {prod.name}
+                                    </button>
+                                  );
+                                })}
                               </div>
-                            ));
+                            );
                           })()}
                         </div>
 
