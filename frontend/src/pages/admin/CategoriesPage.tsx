@@ -117,7 +117,7 @@ export default function CategoriesPage() {
     try {
       await api.put(`/categories/${editing.id}/combos`, { lines: comboLines.map(l => ({
         label: l.label,
-        sourceCategoryId: l.sourceCategoryId,
+        sourceCategoryId: l.sourceCategoryId || null,
         productIds: l.productIds || [],
         minSelect: l.minSelect,
         maxSelect: l.maxSelect,
@@ -138,7 +138,7 @@ export default function CategoriesPage() {
       id: `new-${Date.now()}`,
       categoryId: editing?.id || '',
       label: '',
-      sourceCategoryId: '',
+      sourceCategoryId: undefined,
       productIds: [],
       minSelect: 1,
       maxSelect: 1,
