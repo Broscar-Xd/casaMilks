@@ -78,13 +78,13 @@ export interface ComboLine {
   id: string;
   categoryId: string;
   label: string;
-  sourceCategoryId: string;
-  productIds?: string[]; // IDs for UI state before saving
+  sourceCategoryId?: string | null;
+  productIds?: string[];
   minSelect: number;
   maxSelect: number;
   required: boolean;
   sortOrder: number;
-  sourceCategory?: Category;
+  sourceCategory?: Category | null;
   comboLineProducts?: ComboLineProduct[];
 }
 

@@ -139,8 +139,8 @@ model Category {
 model ComboLine {
   id               String   @id @default(uuid())
   categoryId       String   @map("category_id")
-  label            String   // ej: "Elige tu bebida caliente"
-  sourceCategoryId String   @map("source_category_id") // categoría de productos que son elegibles
+  label            String   // ej: "Elige tu bebida"
+  sourceCategoryId String?  @map("source_category_id") // filtro visual opcional
   minSelect        Int      @default(1)
   maxSelect        Int      @default(1)
   required         Boolean  @default(true)
@@ -149,7 +149,7 @@ model ComboLine {
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   category       Category     @relation("ComboLineCategory", fields: [categoryId], references: [id], onDelete: Cascade)
-  sourceCategory Category     @relation("ComboLineSource", fields: [sourceCategoryId], references: [id])
+  sourceCategory Category?    @relation("ComboLineSource", fields: [sourceCategoryId], references: [id])
   comboLineProducts ComboLineProduct[]
 
   @@index([categoryId])

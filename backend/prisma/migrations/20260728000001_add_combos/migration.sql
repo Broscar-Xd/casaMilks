@@ -99,7 +99,7 @@ CREATE TABLE "combo_lines" (
     "id" TEXT NOT NULL,
     "category_id" TEXT NOT NULL,
     "label" TEXT NOT NULL,
-    "source_category_id" TEXT NOT NULL,
+    "source_category_id" TEXT,
     "minSelect" INTEGER NOT NULL DEFAULT 1,
     "maxSelect" INTEGER NOT NULL DEFAULT 1,
     "required" BOOLEAN NOT NULL DEFAULT true,
@@ -462,7 +462,7 @@ ALTER TABLE "users" ADD CONSTRAINT "users_branch_id_fkey" FOREIGN KEY ("branch_i
 ALTER TABLE "combo_lines" ADD CONSTRAINT "combo_lines_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "categories"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "combo_lines" ADD CONSTRAINT "combo_lines_source_category_id_fkey" FOREIGN KEY ("source_category_id") REFERENCES "categories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "combo_lines" ADD CONSTRAINT "combo_lines_source_category_id_fkey" FOREIGN KEY ("source_category_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "combo_line_products" ADD CONSTRAINT "combo_line_products_combo_line_id_fkey" FOREIGN KEY ("combo_line_id") REFERENCES "combo_lines"("id") ON DELETE CASCADE ON UPDATE CASCADE;

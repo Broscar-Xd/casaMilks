@@ -20,6 +20,8 @@ export default function CategoriesPage() {
 
   // Products by category for combo selection
   const [categoryProducts, setCategoryProducts] = useState<Record<string, ComboProduct[]>>({});
+  // Which category the user is browsing per line (filter, not a constraint)
+  const [browsingCategory, setBrowsingCategory] = useState<Record<string, string>>({});
 
   const fetchData = async () => {
     try {
@@ -45,16 +47,17 @@ export default function CategoriesPage() {
     try {
       const res = await api.get<ApiResponse<ComboLine[]>>(`/categories/${categoryId}/combos`);
       if (res.success && res.data) {
-        // Convert API format to UI format with productIds array
         const lines = res.data.map(line => ({
           ...line,
           productIds: (line.comboLineProducts || []).map(clp => clp.productId),
+          sourceCategoryId: line.sourceCategoryId ?? undefined,
         }));
         setComboLines(lines);
-        // Pre-load products for each line's source category
-        for (const line of lines) {
-          if (line.sourceCategoryId) {
-            fetchCategoryProducts(line.sourceCategoryId);
+        // Fetch products for all categories (except the combo category itself)
+        const otherCats = allCategories.filter(c => c.id !== editing?.id);
+        for (const cat of otherCats) {
+          if (!categoryProducts[cat.id]) {
+            fetchCategoryProducts(cat.id);
           }
         }
       }
@@ -64,7 +67,7 @@ export default function CategoriesPage() {
   };
 
   const fetchCategoryProducts = async (categoryId: string) => {
-    if (categoryProducts[categoryId]) return; // already cached
+    if (categoryProducts[categoryId]) return;
     try {
       const res = await api.get<{ success: boolean; data: ComboProduct[] }>(`/products/by-category/${categoryId}`);
       if (res.success && res.data) {
@@ -145,13 +148,14 @@ export default function CategoriesPage() {
   };
 
   const updateComboLine = (index: number, field: string, value: any) => {
+    const lineId = comboLines[index]?.id;
     setComboLines(prev => prev.map((line, i) =>
       i === index ? { ...line, [field]: value } : line
     ));
-    // If sourceCategoryId changed, fetch products and reset selections
-    if (field === 'sourceCategoryId' && value) {
+    // If sourceCategoryId changed, fetch products and update browsing category
+    if (field === 'sourceCategoryId' && value && lineId) {
       fetchCategoryProducts(value);
-      updateComboLine(index, 'productIds', []);
+      setBrowsingCategory(prev => ({ ...prev, [lineId]: value }));
     }
   };
 
@@ -287,71 +291,120 @@ export default function CategoriesPage() {
                         </button>
                       </div>
                       <div className="space-y-2">
-                        <div>
-                          <label className="text-xs text-cocoa-400 mb-0.5 block">Categoría de productos</label>
-                          <select
-                            className="input text-sm py-1.5"
-                            value={line.sourceCategoryId}
-                            onChange={e => {
-                              updateComboLine(idx, 'sourceCategoryId', e.target.value);
-                              if (e.target.value) fetchCategoryProducts(e.target.value);
-                              updateComboLine(idx, 'productIds', []);
-                            }}
-                          >
-                            <option value="">Seleccionar categoría...</option>
-                            {allCategories
-                              .filter(c => c.id !== editing?.id)
-                              .map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                              ))}
-                          </select>
+                        {/* Category filter — only changes which products are visible */}
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1">
+                            <label className="text-xs text-cocoa-400 mb-0.5 block">Filtrar por categoría</label>
+                            <select
+                              className="input text-sm py-1.5"
+                              value={browsingCategory[line.id] || ''}
+                              onChange={e => {
+                                setBrowsingCategory(prev => ({ ...prev, [line.id]: e.target.value }));
+                                if (e.target.value && !categoryProducts[e.target.value]) {
+                                  fetchCategoryProducts(e.target.value);
+                                }
+                              }}
+                            >
+                              <option value="">Todas las categorías</option>
+                              {allCategories
+                                .filter(c => c.id !== editing?.id)
+                                .map(c => (
+                                  <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                          </div>
                         </div>
 
-                        {/* Product picker */}
-                        {line.sourceCategoryId && (
-                          <div>
-                            <label className="text-xs text-cocoa-400 mb-1 block">
-                              Productos disponibles como opciones
-                              <span className="text-cocoa-300 ml-1">
-                                ({(line.productIds || []).length} seleccionados)
+                        {/* Selected products counter */}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-cocoa-500 font-medium">
+                            {(line.productIds || []).length} producto{(line.productIds || []).length !== 1 ? 's' : ''} seleccionado{(line.productIds || []).length !== 1 ? 's' : ''}
+                          </span>
+                          {(line.productIds || []).length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => updateComboLine(idx, 'productIds', [])}
+                              className="text-[10px] text-red-400 hover:text-red-600 underline"
+                            >
+                              Limpiar
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Selected product chips */}
+                        {(line.productIds || []).length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {Object.values(categoryProducts).flat().filter(p => (line.productIds || []).includes(p.id)).map(prod => (
+                              <span key={prod.id} className="inline-flex items-center gap-1 rounded-full bg-cocoa-100 text-cocoa-700 px-2 py-0.5 text-[10px] font-medium">
+                                {prod.name}
+                                <button type="button" onClick={() => {
+                                  const next = (line.productIds || []).filter(id => id !== prod.id);
+                                  updateComboLine(idx, 'productIds', next);
+                                }} className="hover:text-red-500">✕</button>
                               </span>
-                            </label>
-                            {!categoryProducts[line.sourceCategoryId] ? (
-                              <div className="flex items-center gap-2 text-xs text-cocoa-300 py-2">
-                                <Loader2 size={12} className="animate-spin" /> Cargando productos...
-                              </div>
-                            ) : categoryProducts[line.sourceCategoryId].length === 0 ? (
-                              <p className="text-xs text-cocoa-300 py-2">No hay productos en esta categoría</p>
-                            ) : (
-                              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                                {categoryProducts[line.sourceCategoryId].map(prod => {
-                                  const selected = (line.productIds || []).includes(prod.id);
-                                  return (
-                                    <button
-                                      key={prod.id}
-                                      type="button"
-                                      onClick={() => {
-                                        const current = line.productIds || [];
-                                        const next = selected
-                                          ? current.filter(id => id !== prod.id)
-                                          : [...current, prod.id];
-                                        updateComboLine(idx, 'productIds', next);
-                                      }}
-                                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
-                                        selected
-                                          ? 'bg-cocoa-600 text-milk-50 shadow-sm ring-1 ring-cocoa-400'
-                                          : 'bg-white text-cocoa-600 border border-cocoa-200 hover:border-cocoa-400'
-                                      }`}
-                                    >
-                                      {selected && <span className="text-milk-300">✓</span>}
-                                      {prod.name}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
+                            ))}
                           </div>
                         )}
+
+                        {/* Product picker — show filtered products */}
+                        <div className="border border-milk-200/70 rounded-xl bg-milk-50/50 p-2.5">
+                          {(() => {
+                            const filterCatId = browsingCategory[line.id];
+                            const productsToShow = filterCatId
+                              ? categoryProducts[filterCatId]
+                              : Object.values(categoryProducts).flat();
+
+                            if (!productsToShow || productsToShow.length === 0) {
+                              return <p className="text-xs text-cocoa-300 text-center py-3">
+                                {filterCatId ? 'No hay productos en esta categoría' : 'Carga productos en las categorías para verlos aquí'}
+                              </p>;
+                            }
+
+                            // Group by category for "All categories" view
+                            const grouped: Record<string, ComboProduct[]> = filterCatId
+                              ? { '': productsToShow }
+                              : Object.fromEntries(
+                                  (allCategories
+                                    .filter(c => c.id !== editing?.id)
+                                    .map(c => [c.name, categoryProducts[c.id] || []] as [string, ComboProduct[]])
+                                    .filter(([, prods]) => prods.length > 0))
+                                );
+
+                            return Object.entries(grouped).map(([groupName, prods]) => (
+                              <div key={groupName}>
+                                {!filterCatId && groupName && (
+                                  <p className="text-[10px] text-cocoa-300 font-medium mb-1 mt-2 first:mt-0">{groupName}</p>
+                                )}
+                                <div className="flex flex-wrap gap-1.5">
+                                  {prods.map(prod => {
+                                    const selected = (line.productIds || []).includes(prod.id);
+                                    return (
+                                      <button
+                                        key={prod.id}
+                                        type="button"
+                                        onClick={() => {
+                                          const current = line.productIds || [];
+                                          const next = selected
+                                            ? current.filter(id => id !== prod.id)
+                                            : [...current, prod.id];
+                                          updateComboLine(idx, 'productIds', next);
+                                        }}
+                                        className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                                          selected
+                                            ? 'bg-cocoa-600 text-milk-50 shadow-sm ring-1 ring-cocoa-400'
+                                            : 'bg-white text-cocoa-600 border border-cocoa-200 hover:border-cocoa-400'
+                                        }`}
+                                      >
+                                        {selected && <span className="text-milk-300">✓</span>}
+                                        {prod.name}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ));
+                          })()}
+                        </div>
 
                         <div className="grid grid-cols-3 gap-2">
                           <div>

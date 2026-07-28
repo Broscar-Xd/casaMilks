@@ -53,7 +53,7 @@ export const categoryRepository = {
   createComboLine: (data: {
     categoryId: string;
     label: string;
-    sourceCategoryId: string;
+    sourceCategoryId?: string | null;
     minSelect: number;
     maxSelect: number;
     required: boolean;
@@ -64,7 +64,7 @@ export const categoryRepository = {
       data: {
         categoryId: data.categoryId,
         label: data.label,
-        sourceCategoryId: data.sourceCategoryId,
+        sourceCategoryId: data.sourceCategoryId ?? null,
         minSelect: data.minSelect,
         maxSelect: data.maxSelect,
         required: data.required,
