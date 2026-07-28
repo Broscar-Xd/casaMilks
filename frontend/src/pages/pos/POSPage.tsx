@@ -55,6 +55,7 @@ export default function POSPage() {
   const [showTakeoutModal, setShowTakeoutModal] = useState(false);
   const [isTakeout, setIsTakeout] = useState(false);
   const [customerNameInput, setCustomerNameInput] = useState('');
+  const [notesInput, setNotesInput] = useState('');
 
   const fetchTables = useCallback(async () => {
     if (!currentBranch) return;
@@ -108,6 +109,7 @@ export default function POSPage() {
     setSelectedTable(table);
     setIsTakeout(false);
     setCustomerNameInput('');
+    setNotesInput('');
     setCart([]);
     setSearch('');
     setSelectedCategory(null);
@@ -119,6 +121,7 @@ export default function POSPage() {
     setSelectedTable(null);
     setIsTakeout(true);
     setCustomerNameInput('');
+    setNotesInput('');
     setCart([]);
     setSearch('');
     setSelectedCategory(null);
@@ -272,6 +275,7 @@ export default function POSPage() {
         const res = await api.post<ApiResponse<Order>>('/orders/takeout', {
           branchId: currentBranch.id,
           customerName: customerNameInput.trim(),
+          notes: notesInput.trim() || undefined,
           items: cart.map(i => ({
             productId: i.product.id,
             quantity: i.quantity,
@@ -291,6 +295,7 @@ export default function POSPage() {
         const res = await api.post<ApiResponse<Order>>('/orders', {
           tableId: selectedTable!.id,
           branchId: currentBranch.id,
+          notes: notesInput.trim() || undefined,
           items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: Number(i.product.price), subtotal: i.subtotal, comboSelections: i.comboSelections })),
         });
         if (res.success) {
@@ -547,6 +552,11 @@ export default function POSPage() {
                     onChange={e => setCustomerNameInput(e.target.value)} required />
                 </div>
               )}
+              <div className="mb-3">
+                <label className="label">Nota para cocina (opcional)</label>
+                <textarea className="input py-2" rows={2} placeholder="Ej: Sin sal, bien tostado..."
+                  value={notesInput} onChange={e => setNotesInput(e.target.value)} />
+              </div>
               <input type="text" placeholder="Buscar producto..." className="input mb-2 py-2 text-sm"
                 value={search} onChange={e => setSearch(e.target.value)} />
               <div className="flex gap-1.5 overflow-x-auto pb-2">
