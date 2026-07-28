@@ -1,10 +1,17 @@
 import { z } from 'zod';
 
+const comboSelectionSchema = z.object({
+  productId: z.string().uuid(),
+  productName: z.string().min(1),
+  lineLabel: z.string().optional(),
+});
+
 const orderItemSchema = z.object({
   productId: z.string().uuid('Producto inválido'),
   quantity: z.number().int().positive('Cantidad debe ser al menos 1'),
   unitPrice: z.number().positive(),
   subtotal: z.number().positive(),
+  comboSelections: z.array(comboSelectionSchema).optional(),
 });
 
 export const createTableOrderSchema = z.object({

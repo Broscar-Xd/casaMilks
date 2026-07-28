@@ -5,9 +5,12 @@ export const orderRepository = {
     prisma.order.findUnique({
       where: { id },
       include: {
-        items: { include: { product: true } },
+        items: { include: { product: true, comboItems: true } },
         payments: true,
-        kitchenSends: { include: { items: { include: { product: true } } }, orderBy: { createdAt: 'desc' } },
+        kitchenSends: {
+          include: { items: { include: { product: true } }, comboItems: true },
+          orderBy: { createdAt: 'desc' },
+        },
         user: { select: { id: true, name: true } },
         table: true,
       },
@@ -17,9 +20,12 @@ export const orderRepository = {
     prisma.order.findFirst({
       where: { tableId, status: { not: 'CLOSED' } },
       include: {
-        items: { include: { product: true } },
+        items: { include: { product: true, comboItems: true } },
         payments: true,
-        kitchenSends: { include: { items: { include: { product: true } } }, orderBy: { createdAt: 'desc' } },
+        kitchenSends: {
+          include: { items: { include: { product: true } }, comboItems: true },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     }),
 
@@ -32,7 +38,7 @@ export const orderRepository = {
           : {}),
       },
       include: {
-        items: { include: { product: true } },
+        items: { include: { product: true, comboItems: true } },
         payments: true,
         table: true,
         user: { select: { id: true, name: true } },
@@ -48,6 +54,7 @@ export const orderRepository = {
       },
       include: {
         items: { include: { product: true } },
+        comboItems: { include: { product: { select: { id: true, name: true } } } },
         order: { select: { id: true, tableId: true, table: { select: { name: true } }, notes: true, createdAt: true } },
       },
       orderBy: { createdAt: 'asc' },
@@ -87,13 +94,16 @@ export const orderRepository = {
       return created;
     }),
 
-  createKitchenSend: (orderId: string, items: Array<{ productId: string; quantity: number }>) =>
+  createKitchenSend: (orderId: string, items: Array<{ productId: string; quantity: number }>, comboItems?: Array<{ productId: string; productName: string; quantity: number; lineLabel?: string | null }>) =>
     prisma.kitchenSend.create({
       data: {
         orderId,
         items: { create: items },
+        ...(comboItems && comboItems.length > 0
+          ? { comboItems: { create: comboItems.map(ci => ({ productId: ci.productId, productName: ci.productName, quantity: ci.quantity, lineLabel: ci.lineLabel })) } }
+          : {}),
       },
-      include: { items: { include: { product: true } } },
+      include: { items: { include: { product: true } }, comboItems: { include: { product: { select: { id: true, name: true } } } } },
     }),
 
   markKitchenSendReady: (sendId: string) =>

@@ -42,9 +42,12 @@ export const orderService = {
         notes: input.notes,
         status: 'OPEN',
         total: input.items.reduce((s, i) => s + Number(i.subtotal), 0),
-        items: { create: input.items.map(i => ({ ...i, sentToKitchen: false })) },
+        items: { create: input.items.map(i => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice, subtotal: i.subtotal, sentToKitchen: false })) },
       },
     });
+
+    // Create OrderItemCombo records
+    await createOrderItemCombos(order.id, input.items);
 
     // Enviar a cocina productos que requieren preparación
     await sendToKitchen(order.id, input.items);
@@ -67,6 +70,9 @@ export const orderService = {
       items: input.items,
     });
 
+    // Create OrderItemCombo records
+    await createOrderItemCombos(order.id, input.items);
+
     // Marcar mesa como ocupada
     await tableRepository.updateStatus(input.tableId, 'OCCUPIED');
 
@@ -86,6 +92,9 @@ export const orderService = {
     if (order.status !== 'OPEN') throw new AppError('El pedido ya está cerrado');
 
     const createdItems = await orderRepository.addItems(orderId, input.items);
+
+    // Create OrderItemCombo records
+    await createOrderItemCombos(orderId, input.items);
 
     // Enviar a cocina solo los productos que requieren preparación
     await sendToKitchen(orderId, input.items);
@@ -173,10 +182,50 @@ export const orderService = {
 };
 
 /**
- * Envía a cocina los productos que requieren preparación.
- * Crea un KitchenSend con solo esos items.
+ * Crea registros OrderItemCombo para cada item que tenga comboSelections.
  */
-async function sendToKitchen(orderId: string, items: Array<{ productId: string; quantity: number }>) {
+async function createOrderItemCombos(orderId: string, items: Array<{ productId: string; quantity: number; comboSelections?: Array<{ productId: string; productName: string; lineLabel?: string }> }>) {
+  const itemsWithCombos = items.filter(i => i.comboSelections && i.comboSelections.length > 0);
+  if (itemsWithCombos.length === 0) return;
+
+  // Fetch created order items to map them
+  const orderItems = await prisma.orderItem.findMany({
+    where: { orderId },
+    orderBy: { id: 'asc' },
+  });
+
+  const used = new Set<string>();
+  for (const inputItem of itemsWithCombos) {
+    // Find first unmatched OrderItem with this productId
+    const orderItem = orderItems.find(oi => oi.productId === inputItem.productId && !used.has(oi.id));
+    if (!orderItem) continue;
+    used.add(orderItem.id);
+
+    for (const sel of inputItem.comboSelections!) {
+      // Check if OrderItemCombo already exists
+      const existing = await prisma.orderItemCombo.findFirst({
+        where: { orderItemId: orderItem.id, productId: sel.productId },
+      });
+      if (!existing) {
+        await prisma.orderItemCombo.create({
+          data: {
+            orderItemId: orderItem.id,
+            productId: sel.productId,
+            productName: sel.productName,
+            quantity: 1,
+            lineLabel: sel.lineLabel || null,
+          },
+        });
+      }
+    }
+  }
+}
+
+/**
+ * Envía a cocina los productos que requieren preparación.
+ * Crea un KitchenSend con los items y sus desgloses de combo.
+ */
+async function sendToKitchen(orderId: string, items: Array<{ productId: string; quantity: number; comboSelections?: Array<{ productId: string; productName: string; lineLabel?: string }> }>) {
   const products = await prisma.product.findMany({
     where: { id: { in: items.map(i => i.productId) } },
     select: { id: true, requiresPreparation: true },
@@ -187,7 +236,23 @@ async function sendToKitchen(orderId: string, items: Array<{ productId: string; 
     .filter(i => prepMap.get(i.productId) !== false)
     .map(i => ({ productId: i.productId, quantity: i.quantity }));
 
-  if (kitchenItems.length > 0) {
-    await orderRepository.createKitchenSend(orderId, kitchenItems);
+  if (kitchenItems.length === 0) return;
+
+  // Collect combo selections for items going to kitchen
+  const kitchenComboItems: Array<{ productId: string; productName: string; quantity: number; lineLabel?: string | null }> = [];
+  for (const item of items) {
+    if (prepMap.get(item.productId) === false) continue;
+    if (item.comboSelections && item.comboSelections.length > 0) {
+      for (const sel of item.comboSelections) {
+        kitchenComboItems.push({
+          productId: sel.productId,
+          productName: sel.productName,
+          quantity: 1,
+          lineLabel: sel.lineLabel || null,
+        });
+      }
+    }
   }
+
+  await orderRepository.createKitchenSend(orderId, kitchenItems, kitchenComboItems);
 }
