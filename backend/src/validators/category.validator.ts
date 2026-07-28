@@ -16,6 +16,7 @@ export const updateCategorySchema = z.object({
 export const comboLineSchema = z.object({
   label: z.string().min(1, 'Label requerido'),
   sourceCategoryId: z.string().uuid(),
+  productIds: z.array(z.string().uuid()).min(1, 'Debe seleccionar al menos un producto'),
   minSelect: z.number().int().min(0).default(1),
   maxSelect: z.number().int().min(1).default(1),
   required: z.boolean().default(true),

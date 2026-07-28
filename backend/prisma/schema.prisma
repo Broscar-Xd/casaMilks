@@ -150,9 +150,24 @@ model ComboLine {
 
   category       Category     @relation("ComboLineCategory", fields: [categoryId], references: [id], onDelete: Cascade)
   sourceCategory Category     @relation("ComboLineSource", fields: [sourceCategoryId], references: [id])
+  comboLineProducts ComboLineProduct[]
 
   @@index([categoryId])
   @@map("combo_lines")
+}
+
+/// Productos específicos seleccionados como opciones en una línea de combo.
+/// No se usa sourceCategoryId directamente; el usuario elige productos individuales.
+model ComboLineProduct {
+  id           String @id @default(uuid())
+  comboLineId  String @map("combo_line_id")
+  productId    String @map("product_id")
+
+  comboLine ComboLine @relation(fields: [comboLineId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@unique([comboLineId, productId])
+  @@map("combo_line_products")
 }
 
 /// Items de orden que pertenecen a un combo (para desglose en cocina)
@@ -209,6 +224,7 @@ model Product {
   kitchenSendItems  KitchenSendItem[]
   orderItemCombos   OrderItemCombo[]
   kitchenSendCombos KitchenSendCombo[]
+  comboLineProducts ComboLineProduct[]
 
   @@index([categoryId])
   @@index([branchId])

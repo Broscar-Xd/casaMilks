@@ -18,6 +18,9 @@ export default function CategoriesPage() {
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [comboSaving, setComboSaving] = useState(false);
 
+  // Products by category for combo selection
+  const [categoryProducts, setCategoryProducts] = useState<Record<string, ComboProduct[]>>({});
+
   const fetchData = async () => {
     try {
       const res = await api.get<ApiResponse<Category[]>>('/categories/all');
@@ -41,10 +44,33 @@ export default function CategoriesPage() {
   const fetchComboLines = async (categoryId: string) => {
     try {
       const res = await api.get<ApiResponse<ComboLine[]>>(`/categories/${categoryId}/combos`);
-      if (res.success && res.data) setComboLines(res.data);
+      if (res.success && res.data) {
+        // Convert API format to UI format with productIds array
+        const lines = res.data.map(line => ({
+          ...line,
+          productIds: (line.comboLineProducts || []).map(clp => clp.productId),
+        }));
+        setComboLines(lines);
+        // Pre-load products for each line's source category
+        for (const line of lines) {
+          if (line.sourceCategoryId) {
+            fetchCategoryProducts(line.sourceCategoryId);
+          }
+        }
+      }
     } catch {
       setComboLines([]);
     }
+  };
+
+  const fetchCategoryProducts = async (categoryId: string) => {
+    if (categoryProducts[categoryId]) return; // already cached
+    try {
+      const res = await api.get<{ success: boolean; data: ComboProduct[] }>(`/products/by-category/${categoryId}`);
+      if (res.success && res.data) {
+        setCategoryProducts(prev => ({ ...prev, [categoryId]: res.data }));
+      }
+    } catch { /* silent */ }
   };
 
   const openCreate = () => {
@@ -89,6 +115,7 @@ export default function CategoriesPage() {
       await api.put(`/categories/${editing.id}/combos`, { lines: comboLines.map(l => ({
         label: l.label,
         sourceCategoryId: l.sourceCategoryId,
+        productIds: l.productIds || [],
         minSelect: l.minSelect,
         maxSelect: l.maxSelect,
         required: l.required,
@@ -109,6 +136,7 @@ export default function CategoriesPage() {
       categoryId: editing?.id || '',
       label: '',
       sourceCategoryId: '',
+      productIds: [],
       minSelect: 1,
       maxSelect: 1,
       required: true,
@@ -120,6 +148,11 @@ export default function CategoriesPage() {
     setComboLines(prev => prev.map((line, i) =>
       i === index ? { ...line, [field]: value } : line
     ));
+    // If sourceCategoryId changed, fetch products and reset selections
+    if (field === 'sourceCategoryId' && value) {
+      fetchCategoryProducts(value);
+      updateComboLine(index, 'productIds', []);
+    }
   };
 
   const removeComboLine = (index: number) => {
@@ -253,15 +286,19 @@ export default function CategoriesPage() {
                           <X size={16} />
                         </button>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-2">
                         <div>
-                          <label className="text-xs text-cocoa-400 mb-0.5 block">Categoría origen</label>
+                          <label className="text-xs text-cocoa-400 mb-0.5 block">Categoría de productos</label>
                           <select
                             className="input text-sm py-1.5"
                             value={line.sourceCategoryId}
-                            onChange={e => updateComboLine(idx, 'sourceCategoryId', e.target.value)}
+                            onChange={e => {
+                              updateComboLine(idx, 'sourceCategoryId', e.target.value);
+                              if (e.target.value) fetchCategoryProducts(e.target.value);
+                              updateComboLine(idx, 'productIds', []);
+                            }}
                           >
-                            <option value="">Seleccionar...</option>
+                            <option value="">Seleccionar categoría...</option>
                             {allCategories
                               .filter(c => c.id !== editing?.id)
                               .map(c => (
@@ -269,7 +306,54 @@ export default function CategoriesPage() {
                               ))}
                           </select>
                         </div>
-                        <div className="grid grid-cols-2 gap-1">
+
+                        {/* Product picker */}
+                        {line.sourceCategoryId && (
+                          <div>
+                            <label className="text-xs text-cocoa-400 mb-1 block">
+                              Productos disponibles como opciones
+                              <span className="text-cocoa-300 ml-1">
+                                ({(line.productIds || []).length} seleccionados)
+                              </span>
+                            </label>
+                            {!categoryProducts[line.sourceCategoryId] ? (
+                              <div className="flex items-center gap-2 text-xs text-cocoa-300 py-2">
+                                <Loader2 size={12} className="animate-spin" /> Cargando productos...
+                              </div>
+                            ) : categoryProducts[line.sourceCategoryId].length === 0 ? (
+                              <p className="text-xs text-cocoa-300 py-2">No hay productos en esta categoría</p>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                                {categoryProducts[line.sourceCategoryId].map(prod => {
+                                  const selected = (line.productIds || []).includes(prod.id);
+                                  return (
+                                    <button
+                                      key={prod.id}
+                                      type="button"
+                                      onClick={() => {
+                                        const current = line.productIds || [];
+                                        const next = selected
+                                          ? current.filter(id => id !== prod.id)
+                                          : [...current, prod.id];
+                                        updateComboLine(idx, 'productIds', next);
+                                      }}
+                                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                                        selected
+                                          ? 'bg-cocoa-600 text-milk-50 shadow-sm ring-1 ring-cocoa-400'
+                                          : 'bg-white text-cocoa-600 border border-cocoa-200 hover:border-cocoa-400'
+                                      }`}
+                                    >
+                                      {selected && <span className="text-milk-300">✓</span>}
+                                      {prod.name}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-3 gap-2">
                           <div>
                             <label className="text-xs text-cocoa-400 mb-0.5 block">Min</label>
                             <input type="number" className="input text-sm py-1.5" min={0} value={line.minSelect}
@@ -280,20 +364,15 @@ export default function CategoriesPage() {
                             <input type="number" className="input text-sm py-1.5" min={1} value={line.maxSelect}
                               onChange={e => updateComboLine(idx, 'maxSelect', parseInt(e.target.value) || 1)} />
                           </div>
+                          <div className="flex items-end pb-1.5">
+                            <label className="flex items-center gap-1.5 text-xs text-cocoa-500 cursor-pointer">
+                              <input type="checkbox" checked={line.required}
+                                onChange={e => updateComboLine(idx, 'required', e.target.checked)}
+                                className="rounded border-cocoa-300 text-cocoa-600 focus:ring-cocoa-500" />
+                              Requerido
+                            </label>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1.5 text-xs text-cocoa-500">
-                          <input type="checkbox" checked={line.required}
-                            onChange={e => updateComboLine(idx, 'required', e.target.checked)}
-                            className="rounded border-cocoa-300 text-cocoa-600 focus:ring-cocoa-500" />
-                          Requerido
-                        </label>
-                        {line.sourceCategoryId && (
-                          <span className="text-[11px] text-cocoa-400 ml-auto">
-                            Productos de: {allCategories.find(c => c.id === line.sourceCategoryId)?.name || '—'}
-                          </span>
-                        )}
                       </div>
                     </div>
                   ))}

@@ -208,7 +208,7 @@ export default function POSPage() {
     for (const line of comboLines) {
       const selected = comboSelections[line.id] || [];
       for (const productId of selected) {
-        const lineProduct = line.sourceCategory?.products?.find(p => p.id === productId);
+        const lineProduct = line.comboLineProducts?.find(clp => clp.productId === productId)?.product;
         if (lineProduct) {
           selections.push({ productId: lineProduct.id, productName: lineProduct.name, lineLabel: line.label });
         }
@@ -836,7 +836,8 @@ export default function POSPage() {
                     </span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {(line.sourceCategory?.products || []).map(opt => {
+                    {(line.comboLineProducts || []).map(clp => {
+                      const opt = clp.product;
                       const isSelected = (comboSelections[line.id] || []).includes(opt.id);
                       return (
                         <button
@@ -865,7 +866,7 @@ export default function POSPage() {
                         </button>
                       );
                     })}
-                    {(line.sourceCategory?.products || []).length === 0 && (
+                    {(line.comboLineProducts || []).length === 0 && (
                       <p className="text-xs text-cocoa-300 col-span-full text-center py-3">
                         No hay productos disponibles en esta categoría
                       </p>

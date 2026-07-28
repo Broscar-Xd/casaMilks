@@ -18,8 +18,9 @@ export const categoryRepository = {
       include: {
         comboLines: {
           include: {
-            sourceCategory: {
-              include: { products: { where: { active: true }, select: { id: true, name: true, price: true } } },
+            sourceCategory: true,
+            comboLineProducts: {
+              include: { product: { select: { id: true, name: true, price: true } } },
             },
           },
           orderBy: { sortOrder: 'asc' },
@@ -38,8 +39,9 @@ export const categoryRepository = {
     prisma.comboLine.findMany({
       where: { categoryId },
       include: {
-        sourceCategory: {
-          include: { products: { where: { active: true }, select: { id: true, name: true, price: true } } },
+        sourceCategory: true,
+        comboLineProducts: {
+          include: { product: { select: { id: true, name: true, price: true } } },
         },
       },
       orderBy: { sortOrder: 'asc' },
@@ -56,5 +58,20 @@ export const categoryRepository = {
     maxSelect: number;
     required: boolean;
     sortOrder: number;
-  }) => prisma.comboLine.create({ data }),
+    productIds: string[];
+  }) =>
+    prisma.comboLine.create({
+      data: {
+        categoryId: data.categoryId,
+        label: data.label,
+        sourceCategoryId: data.sourceCategoryId,
+        minSelect: data.minSelect,
+        maxSelect: data.maxSelect,
+        required: data.required,
+        sortOrder: data.sortOrder,
+        comboLineProducts: {
+          create: data.productIds.map(productId => ({ productId })),
+        },
+      },
+    }),
 };

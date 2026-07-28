@@ -111,6 +111,15 @@ CREATE TABLE "combo_lines" (
 );
 
 -- CreateTable
+CREATE TABLE "combo_line_products" (
+    "id" TEXT NOT NULL,
+    "combo_line_id" TEXT NOT NULL,
+    "product_id" TEXT NOT NULL,
+
+    CONSTRAINT "combo_line_products_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "order_item_combos" (
     "id" TEXT NOT NULL,
     "order_item_id" TEXT NOT NULL,
@@ -339,6 +348,9 @@ CREATE UNIQUE INDEX "categories_name_key" ON "categories"("name");
 CREATE INDEX "combo_lines_category_id_idx" ON "combo_lines"("category_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "combo_line_products_combo_line_id_product_id_key" ON "combo_line_products"("combo_line_id", "product_id");
+
+-- CreateIndex
 CREATE INDEX "order_item_combos_order_item_id_idx" ON "order_item_combos"("order_item_id");
 
 -- CreateIndex
@@ -451,6 +463,12 @@ ALTER TABLE "combo_lines" ADD CONSTRAINT "combo_lines_category_id_fkey" FOREIGN 
 
 -- AddForeignKey
 ALTER TABLE "combo_lines" ADD CONSTRAINT "combo_lines_source_category_id_fkey" FOREIGN KEY ("source_category_id") REFERENCES "categories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "combo_line_products" ADD CONSTRAINT "combo_line_products_combo_line_id_fkey" FOREIGN KEY ("combo_line_id") REFERENCES "combo_lines"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "combo_line_products" ADD CONSTRAINT "combo_line_products_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "order_item_combos" ADD CONSTRAINT "order_item_combos_order_item_id_fkey" FOREIGN KEY ("order_item_id") REFERENCES "order_items"("id") ON DELETE CASCADE ON UPDATE CASCADE;
