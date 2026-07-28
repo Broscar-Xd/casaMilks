@@ -75,7 +75,13 @@ export const orderRepository = {
           notes: data.notes,
           status: 'OPEN',
           total,
-          items: { create: data.items.map(i => ({ ...i, sentToKitchen: false })) },
+          items: { create: data.items.map(i => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            subtotal: i.subtotal,
+            sentToKitchen: false,
+          })) },
         },
       });
       return order;
@@ -89,7 +95,9 @@ export const orderRepository = {
       const newTotal = Number(order.total) + addTotal;
       await tx.order.update({ where: { id: orderId }, data: { total: newTotal } });
       const created = await tx.orderItem.createManyAndReturn({
-        data: items.map(i => ({ orderId, ...i, sentToKitchen: false })),
+        data: items.map(i => ({
+          orderId, productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice, subtotal: i.subtotal, sentToKitchen: false,
+        })),
       });
       return created;
     }),
