@@ -54,4 +54,14 @@ export const productController = {
       next(error);
     }
   },
+
+  // Para combo options: productos activos de una categoría específica
+  byCategory: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const products = await productService.listByCategory(p(req.params, 'categoryId'));
+      res.json({ success: true, data: products });
+    } catch (error) {
+      next(error);
+    }
+  },
 };

@@ -6,6 +6,9 @@ export const productService = {
   listByBranch: (branchId: string, categoryId?: string) =>
     productRepository.listByBranch(branchId, categoryId),
 
+  listByCategory: (categoryId: string) =>
+    productRepository.listByCategory(categoryId),
+
   listAll: (branchId?: string) => productRepository.listAll(branchId),
 
   getById: async (id: string) => {

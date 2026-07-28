@@ -78,6 +78,20 @@ export default function KitchenPage() {
                     <span className="text-sm font-medium text-cocoa-800">{item.product?.name || 'Producto'}</span>
                   </div>
                 ))}
+                {/* Combo breakdown */}
+                {send.comboItems && send.comboItems.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-milk-200/50 space-y-1.5">
+                    {send.comboItems.map(ci => (
+                      <div key={ci.id} className="flex items-center gap-2 pl-4">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-br from-milk-400 to-milk-500 text-[10px] font-bold text-cocoa-900 shadow-sm">{ci.quantity}</span>
+                        <span className="text-xs text-cocoa-600 font-medium">{ci.productName}</span>
+                        {ci.lineLabel && (
+                          <span className="text-[10px] text-cocoa-300 ml-auto italic">{ci.lineLabel}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               {send.order?.notes && (
                 <div className="mx-4 mb-2 rounded-lg bg-amber-50 border border-amber-200/60 px-3 py-2">

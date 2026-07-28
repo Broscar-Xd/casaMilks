@@ -10,6 +10,7 @@ productRoutes.use(authenticate);
 
 productRoutes.get('/', productController.listByBranch);
 productRoutes.get('/all', authorize('ADMIN'), productController.listAll);
+productRoutes.get('/by-category/:categoryId', productController.byCategory);
 productRoutes.get('/:id', productController.getById);
 productRoutes.post('/', authorize('ADMIN'), validate(createProductSchema), productController.create);
 productRoutes.patch('/:id', authorize('ADMIN'), validate(updateProductSchema), productController.update);

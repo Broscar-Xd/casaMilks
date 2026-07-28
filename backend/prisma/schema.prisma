@@ -116,17 +116,75 @@ enum Role {
 }
 
 /// Categorías de productos (ej: Clásicos, Especiales, Bebidas).
+/// Si isCombo=true, los productos de esta categoría son combos
+/// y requieren seleccionar opciones definidas en ComboLine.
 model Category {
   id          String   @id @default(uuid())
   name        String   @unique
   description String?
   active      Boolean  @default(true)
+  isCombo     Boolean  @default(false) @map("is_combo")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  products Product[]
+  products       Product[]
+  comboLines     ComboLine[] @relation("ComboLineCategory")
+  sourceComboLines ComboLine[] @relation("ComboLineSource")
 
   @@map("categories")
+}
+
+/// Define una línea de selección dentro de un combo.
+/// Ej: "Elige tu bebida caliente" con sourceCategoryId = "bebidas-calientes"
+model ComboLine {
+  id               String   @id @default(uuid())
+  categoryId       String   @map("category_id")
+  label            String   // ej: "Elige tu bebida caliente"
+  sourceCategoryId String   @map("source_category_id") // categoría de productos que son elegibles
+  minSelect        Int      @default(1)
+  maxSelect        Int      @default(1)
+  required         Boolean  @default(true)
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  category       Category     @relation("ComboLineCategory", fields: [categoryId], references: [id], onDelete: Cascade)
+  sourceCategory Category     @relation("ComboLineSource", fields: [sourceCategoryId], references: [id])
+
+  @@index([categoryId])
+  @@map("combo_lines")
+}
+
+/// Items de orden que pertenecen a un combo (para desglose en cocina)
+model OrderItemCombo {
+  id          String   @id @default(uuid())
+  orderItemId String   @map("order_item_id")
+  productId   String   @map("product_id")
+  productName String   @map("product_name") // snapshot del nombre al momento de la venta
+  quantity    Int      @default(1)
+  lineLabel   String?  @map("line_label") // ej: "Bebida Caliente"
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@index([orderItemId])
+  @@map("order_item_combos")
+}
+
+/// Items enviados a cocina que pertenecen a un combo
+model KitchenSendCombo {
+  id              String   @id @default(uuid())
+  kitchenSendId   String   @map("kitchen_send_id")
+  productId       String   @map("product_id")
+  productName     String   @map("product_name")
+  quantity        Int      @default(1)
+  lineLabel       String?  @map("line_label")
+
+  kitchenSend KitchenSend @relation(fields: [kitchenSendId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id])
+
+  @@index([kitchenSendId])
+  @@map("kitchen_send_combos")
 }
 
 /// Productos del menú. Cada producto puede tener una receta que
@@ -149,6 +207,8 @@ model Product {
   recipes     Recipe[]
   orderItems  OrderItem[]
   kitchenSendItems  KitchenSendItem[]
+  orderItemCombos   OrderItemCombo[]
+  kitchenSendCombos KitchenSendCombo[]
 
   @@index([categoryId])
   @@index([branchId])
@@ -296,6 +356,8 @@ model OrderItem {
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
 
+  comboItems OrderItemCombo[]
+
   @@index([orderId])
   @@index([productId])
   @@map("order_items")
@@ -312,8 +374,9 @@ model KitchenSend {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  order Order              @relation(fields: [orderId], references: [id])
+  order Order                @relation(fields: [orderId], references: [id])
   items KitchenSendItem[]
+  comboItems KitchenSendCombo[]
 
   @@index([orderId])
   @@index([status])

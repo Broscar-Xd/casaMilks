@@ -22,6 +22,7 @@ export interface KitchenSend {
   createdAt: string;
   updatedAt?: string;
   items: KitchenSendItem[];
+  comboItems?: KitchenSendCombo[];
   order?: { id: string; tableId: string; table?: { name: string }; notes?: string | null; createdAt: string };
 }
 
@@ -69,6 +70,44 @@ export interface Category {
   name: string;
   description: string | null;
   active: boolean;
+  isCombo?: boolean;
+  comboLines?: ComboLine[];
+}
+
+export interface ComboLine {
+  id: string;
+  categoryId: string;
+  label: string;
+  sourceCategoryId: string;
+  minSelect: number;
+  maxSelect: number;
+  required: boolean;
+  sortOrder: number;
+  sourceCategory?: Category & { products?: ComboProduct[] };
+}
+
+export interface ComboProduct {
+  id: string;
+  name: string;
+  price: number;
+}
+
+export interface OrderItemCombo {
+  id: string;
+  orderItemId: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  lineLabel: string | null;
+}
+
+export interface KitchenSendCombo {
+  id: string;
+  kitchenSendId: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  lineLabel: string | null;
 }
 
 export interface Product {

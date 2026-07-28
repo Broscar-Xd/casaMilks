@@ -3,8 +3,8 @@ import { useBranch } from '@/contexts/BranchContext';
 import { api } from '@/services/api';
 import { formatCurrency, getPaymentMethodLabel } from '@/lib/utils';
 import toast from 'react-hot-toast';
-import { Loader2, Plus, Minus, Trash2, Receipt, ChefHat, ShoppingCart, X, Search, Banknote, CreditCard, Smartphone, Package } from 'lucide-react';
-import type { TableItem, Product, Category, Order, OrderItem, ApiResponse, PaymentMethod, KitchenSend } from '@/types';
+import { Loader2, Plus, Minus, Trash2, Receipt, ChefHat, ShoppingCart, X, Search, Banknote, CreditCard, Smartphone, Package, Layers } from 'lucide-react';
+import type { TableItem, Product, Category, Order, OrderItem, ApiResponse, PaymentMethod, KitchenSend, ComboLine } from '@/types';
 
 export default function POSPage() {
   const { currentBranch } = useBranch();
@@ -27,7 +27,18 @@ export default function POSPage() {
 
   // Order data
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
-  const [cart, setCart] = useState<Array<{ product: Product; quantity: number; subtotal: number }>>([]);
+  const [cart, setCart] = useState<Array<{
+    product: Product;
+    quantity: number;
+    subtotal: number;
+    comboSelections?: Array<{ productId: string; productName: string; lineLabel: string }>;
+  }>>([]);
+
+  // Combo selection
+  const [showComboModal, setShowComboModal] = useState(false);
+  const [comboProduct, setComboProduct] = useState<Product | null>(null);
+  const [comboLines, setComboLines] = useState<ComboLine[]>([]);
+  const [comboSelections, setComboSelections] = useState<Record<string, string[]>>({});
 
   // Products and categories for ordering
   const [products, setProducts] = useState<Product[]>([]);
@@ -141,7 +152,31 @@ export default function POSPage() {
     setShowCloseModal(true);
   };
 
+  const openComboSelector = async (product: Product) => {
+    setComboProduct(product);
+    setComboSelections({});
+    try {
+      const categoryId = product.categoryId;
+      const res = await api.get<ApiResponse<ComboLine[]>>(`/categories/${categoryId}/combos`);
+      if (res.success && res.data) {
+        setComboLines(res.data);
+        // Init selections
+        const init: Record<string, string[]> = {};
+        res.data.forEach(line => { init[line.id] = []; });
+        setComboSelections(init);
+        setShowComboModal(true);
+      }
+    } catch {
+      toast.error('Error al cargar opciones del combo');
+    }
+  };
+
   const addToCart = (product: Product) => {
+    // If product category is combo, open combo selector instead
+    if (product.category?.isCombo) {
+      openComboSelector(product);
+      return;
+    }
     setCart(prev => {
       const existing = prev.find(item => item.product.id === product.id);
       if (existing) {
@@ -152,6 +187,60 @@ export default function POSPage() {
         );
       }
       return [...prev, { product, quantity: 1, subtotal: Number(product.price) }];
+    });
+  };
+
+  const addComboToCart = () => {
+    if (!comboProduct) return;
+    // Validate selections
+    for (const line of comboLines) {
+      const selected = comboSelections[line.id] || [];
+      if (line.required && selected.length < line.minSelect) {
+        toast.error(`Selecciona al menos ${line.minSelect} opción en "${line.label}"`);
+        return;
+      }
+      if (selected.length > line.maxSelect) {
+        toast.error(`Máximo ${line.maxSelect} opciones en "${line.label}"`);
+        return;
+      }
+    }
+    const selections: Array<{ productId: string; productName: string; lineLabel: string }> = [];
+    for (const line of comboLines) {
+      const selected = comboSelections[line.id] || [];
+      for (const productId of selected) {
+        const lineProduct = line.sourceCategory?.products?.find(p => p.id === productId);
+        if (lineProduct) {
+          selections.push({ productId: lineProduct.id, productName: lineProduct.name, lineLabel: line.label });
+        }
+      }
+    }
+    setCart(prev => {
+      const existing = prev.find(item => item.product.id === comboProduct.id);
+      if (existing) {
+        return prev.map(item =>
+          item.product.id === comboProduct.id
+            ? { ...item, quantity: item.quantity + 1, subtotal: (item.quantity + 1) * Number(comboProduct.price), comboSelections: selections }
+            : item
+        );
+      }
+      return [...prev, { product: comboProduct, quantity: 1, subtotal: Number(comboProduct.price), comboSelections: selections }];
+    });
+    setShowComboModal(false);
+    setComboProduct(null);
+    toast.success(`${comboProduct.name} agregado con opciones`);
+  };
+
+  const toggleComboSelection = (lineId: string, productId: string, maxSelect: number) => {
+    setComboSelections(prev => {
+      const current = prev[lineId] || [];
+      if (current.includes(productId)) {
+        return { ...prev, [lineId]: current.filter(id => id !== productId) };
+      }
+      if (current.length >= maxSelect) {
+        toast.error(`Máximo ${maxSelect} selecciones`);
+        return prev;
+      }
+      return { ...prev, [lineId]: [...current, productId] };
     });
   };
 
@@ -179,7 +268,13 @@ export default function POSPage() {
         const res = await api.post<ApiResponse<Order>>('/orders/takeout', {
           branchId: currentBranch.id,
           customerName: customerNameInput.trim(),
-          items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: Number(i.product.price), subtotal: i.subtotal })),
+          items: cart.map(i => ({
+            productId: i.product.id,
+            quantity: i.quantity,
+            unitPrice: Number(i.product.price),
+            subtotal: i.subtotal,
+            comboSelections: i.comboSelections,
+          })),
         });
         if (res.success) {
           toast.success('Pedido para llevar enviado a cocina');
@@ -192,7 +287,7 @@ export default function POSPage() {
         const res = await api.post<ApiResponse<Order>>('/orders', {
           tableId: selectedTable!.id,
           branchId: currentBranch.id,
-          items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: Number(i.product.price), subtotal: i.subtotal })),
+          items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: Number(i.product.price), subtotal: i.subtotal, comboSelections: i.comboSelections })),
         });
         if (res.success) {
           toast.success('Pedido enviado a cocina');
@@ -211,7 +306,7 @@ export default function POSPage() {
     setSubmitting(true);
     try {
       const res = await api.post<ApiResponse<Order>>(`/orders/${currentOrder.id}/items`, {
-        items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: Number(i.product.price), subtotal: i.subtotal })),
+        items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: Number(i.product.price), subtotal: i.subtotal, comboSelections: i.comboSelections })),
       });
       if (res.success) {
         toast.success('Productos agregados y enviados a cocina');
@@ -478,7 +573,18 @@ export default function POSPage() {
                   <div className="space-y-1.5">
                     {cart.map(item => (
                       <div key={item.product.id} className="flex items-center gap-2 bg-white rounded-xl p-2 text-xs shadow-sm shadow-cocoa-900/5 border border-milk-200/60">
-                        <div className="flex-1 min-w-0"><p className="truncate font-medium text-cocoa-800">{item.product.name}</p></div>
+                        <div className="flex-1 min-w-0">
+                          <p className="truncate font-medium text-cocoa-800">{item.product.name}</p>
+                          {item.comboSelections && item.comboSelections.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-0.5">
+                              {item.comboSelections.map((sel, si) => (
+                                <span key={si} className="inline-flex items-center gap-0.5 rounded-full bg-cocoa-50 px-1.5 py-0.5 text-[9px] text-cocoa-600">
+                                  {sel.productName}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1">
                           <button onClick={() => updateQty(item.product.id, -1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
                           <span className="w-6 text-center font-semibold text-cocoa-800">{item.quantity}</span>
@@ -537,7 +643,18 @@ export default function POSPage() {
                   <div className="space-y-1.5">
                     {cart.map(item => (
                       <div key={item.product.id} className="flex items-center gap-2 bg-white rounded-xl p-2 text-xs shadow-sm shadow-cocoa-900/5 border border-milk-200/60">
-                        <div className="flex-1 min-w-0"><p className="truncate font-medium text-cocoa-800">{item.product.name}</p></div>
+                        <div className="flex-1 min-w-0">
+                          <p className="truncate font-medium text-cocoa-800">{item.product.name}</p>
+                          {item.comboSelections && item.comboSelections.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-0.5">
+                              {item.comboSelections.map((sel, si) => (
+                                <span key={si} className="inline-flex items-center gap-0.5 rounded-full bg-cocoa-50 px-1.5 py-0.5 text-[9px] text-cocoa-600">
+                                  {sel.productName}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1">
                           <button onClick={() => updateQty(item.product.id, -1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
                           <span className="w-6 text-center font-semibold text-cocoa-800">{item.quantity}</span>
@@ -678,6 +795,93 @@ export default function POSPage() {
             </div>
           </div>
         </TableModal>
+      )}
+
+      {/* MODAL: Combo selector */}
+      {showComboModal && comboProduct && (
+        <div className="modal-overlay" onClick={() => setShowComboModal(false)}>
+          <div className="w-full max-w-lg modal-content max-h-[90vh] flex flex-col mx-2 sm:mx-0" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-milk-200/70 px-6 py-4 shrink-0 bg-gradient-to-r from-milk-50/60 to-transparent rounded-t-3xl">
+              <h2 className="text-base font-semibold text-cocoa-900 flex items-center gap-2.5">
+                <span className="h-5 w-1 rounded-full bg-gradient-to-b from-cocoa-500 to-cocoa-700" />
+                Personalizar {comboProduct.name}
+              </h2>
+              <button onClick={() => setShowComboModal(false)} className="btn-ghost p-1.5 rounded-xl hover:bg-milk-100"><X size={18} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              <div className="flex items-center gap-3 rounded-xl bg-cocoa-50/50 border border-cocoa-200/60 p-3">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cocoa-500 to-cocoa-700 text-milk-50 font-bold shadow-md">
+                  <Layers size={20} />
+                </span>
+                <div>
+                  <p className="font-semibold text-cocoa-900">{comboProduct.name}</p>
+                  <p className="text-sm font-bold text-cocoa-600">{formatCurrency(Number(comboProduct.price))}</p>
+                </div>
+              </div>
+
+              {comboLines.length === 0 && (
+                <p className="text-center text-cocoa-300 py-8">Este combo no tiene opciones configuradas</p>
+              )}
+
+              {comboLines.map(line => (
+                <div key={line.id} className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="h-5 w-1 rounded-full bg-gradient-to-b from-cocoa-400 to-cocoa-600" />
+                    <p className="text-sm font-semibold text-cocoa-900">{line.label}</p>
+                    {line.required && <span className="text-[10px] text-red-500 font-medium">*Requerido</span>}
+                    <span className="text-[10px] text-cocoa-300 ml-auto">
+                      {line.minSelect === line.maxSelect
+                        ? `Selecciona ${line.minSelect}`
+                        : `Min ${line.minSelect} · Max ${line.maxSelect}`}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {(line.sourceCategory?.products || []).map(opt => {
+                      const isSelected = (comboSelections[line.id] || []).includes(opt.id);
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => toggleComboSelection(line.id, opt.id, line.maxSelect)}
+                          className={`relative flex flex-col items-center gap-1 rounded-xl border-2 p-3 text-center transition-all duration-150 ${
+                            isSelected
+                              ? 'border-cocoa-500 bg-cocoa-50 shadow-md shadow-cocoa-500/20'
+                              : 'border-milk-200 bg-white hover:border-cocoa-300 hover:shadow-sm'
+                          }`}
+                        >
+                          <div className={`flex h-9 w-9 items-center justify-center rounded-lg text-sm font-bold ${
+                            isSelected ? 'bg-cocoa-600 text-milk-50' : 'bg-milk-100 text-cocoa-500'
+                          }`}>
+                            {opt.name.charAt(0)}
+                          </div>
+                          <span className={`text-xs font-medium ${isSelected ? 'text-cocoa-900' : 'text-cocoa-600'}`}>
+                            {opt.name}
+                          </span>
+                          {isSelected && (
+                            <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-cocoa-600 text-milk-50 shadow-md text-[10px] font-bold">
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                    {(line.sourceCategory?.products || []).length === 0 && (
+                      <p className="text-xs text-cocoa-300 col-span-full text-center py-3">
+                        No hay productos disponibles en esta categoría
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-milk-200/70 px-6 py-4 shrink-0 flex gap-3">
+              <button onClick={() => setShowComboModal(false)} className="btn-secondary flex-1">Cancelar</button>
+              <button onClick={addComboToCart} className="btn-primary flex-1">
+                Agregar al pedido — {formatCurrency(Number(comboProduct.price))}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -50,4 +50,23 @@ export const categoryController = {
       next(error);
     }
   },
+
+  // Combo lines
+  getComboLines: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const lines = await categoryService.getComboLines(p(req.params, 'id'));
+      res.json({ success: true, data: lines });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  saveComboLines: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const lines = await categoryService.saveComboLines(p(req.params, 'id'), req.body);
+      res.json({ success: true, data: lines });
+    } catch (error) {
+      next(error);
+    }
+  },
 };

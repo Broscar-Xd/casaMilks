@@ -13,6 +13,13 @@ export const productRepository = {
       orderBy: { name: 'asc' },
     }),
 
+  listByCategory: (categoryId: string) =>
+    prisma.product.findMany({
+      where: { categoryId, active: true },
+      select: { id: true, name: true, price: true },
+      orderBy: { name: 'asc' },
+    }),
+
   listAll: (branchId?: string) =>
     prisma.product.findMany({
       where: branchId ? { branchId } : undefined,
