@@ -4,7 +4,18 @@ import { api } from '@/services/api';
 import { formatCurrency, getPaymentMethodLabel } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import { Loader2, Plus, Minus, Trash2, Receipt, ChefHat, ShoppingCart, X, Search, Banknote, CreditCard, Smartphone, Package } from 'lucide-react';
-import type { TableItem, Product, Category, Order, OrderItem, ApiResponse, PaymentMethod, KitchenSend } from '@/types';
+import type { TableItem, Product, Category, Order, OrderItem, ApiResponse, PaymentMethod, KitchenSend, ModifierGroup, OrderItemModifier } from '@/types';
+
+/** Una línea del carrito. lineId permite tener el mismo producto con
+ *  distintas opciones como líneas separadas. */
+interface CartLine {
+  lineId: string;
+  product: Product;
+  quantity: number;
+  unitPrice: number; // precio base + extras de las opciones elegidas
+  subtotal: number;
+  modifiers: OrderItemModifier[];
+}
 
 export default function POSPage() {
   const { currentBranch } = useBranch();
@@ -27,7 +38,11 @@ export default function POSPage() {
 
   // Order data
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
-  const [cart, setCart] = useState<Array<{ product: Product; quantity: number; subtotal: number }>>([]);
+  const [cart, setCart] = useState<CartLine[]>([]);
+
+  // Selección de opciones/modificadores antes de agregar al carrito
+  const [modifierProduct, setModifierProduct] = useState<Product | null>(null);
+  const [modSelections, setModSelections] = useState<Record<string, string[]>>({});
 
   // Products and categories for ordering
   const [products, setProducts] = useState<Product[]>([]);
@@ -141,29 +156,95 @@ export default function POSPage() {
     setShowCloseModal(true);
   };
 
+  const newLineId = () =>
+    (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+
   const addToCart = (product: Product) => {
+    // Si el producto tiene grupos de opciones, abrir el selector primero
+    if (product.modifierGroups && product.modifierGroups.length > 0) {
+      setModifierProduct(product);
+      setModSelections({});
+      return;
+    }
+    // Producto simple: se agrega directo (y agrupa cantidad si ya existe sin opciones)
     setCart(prev => {
-      const existing = prev.find(item => item.product.id === product.id);
+      const existing = prev.find(item => item.product.id === product.id && item.modifiers.length === 0);
       if (existing) {
         return prev.map(item =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1, subtotal: (item.quantity + 1) * Number(product.price) }
+          item.lineId === existing.lineId
+            ? { ...item, quantity: item.quantity + 1, subtotal: (item.quantity + 1) * item.unitPrice }
             : item
         );
       }
-      return [...prev, { product, quantity: 1, subtotal: Number(product.price) }];
+      return [...prev, { lineId: newLineId(), product, quantity: 1, unitPrice: Number(product.price), subtotal: Number(product.price), modifiers: [] }];
     });
   };
 
-  const updateQty = (productId: string, delta: number) => {
+  /** Alterna una opción dentro de un grupo (radio si maxSelect=1, checkbox si permite varias). */
+  const toggleOption = (group: ModifierGroup, optionId: string) => {
+    setModSelections(prev => {
+      const current = prev[group.id] || [];
+      if (group.maxSelect <= 1) {
+        return { ...prev, [group.id]: [optionId] };
+      }
+      if (current.includes(optionId)) {
+        return { ...prev, [group.id]: current.filter(id => id !== optionId) };
+      }
+      if (current.length >= group.maxSelect) return prev; // tope alcanzado
+      return { ...prev, [group.id]: [...current, optionId] };
+    });
+  };
+
+  /** Precio extra según las opciones seleccionadas del producto en el selector. */
+  const modifierExtra = (product: Product | null): number => {
+    if (!product?.modifierGroups) return 0;
+    let extra = 0;
+    for (const g of product.modifierGroups) {
+      for (const optId of modSelections[g.id] || []) {
+        const opt = g.options.find(o => o.id === optId);
+        if (opt) extra += Number(opt.priceDelta);
+      }
+    }
+    return extra;
+  };
+
+  const confirmModifiers = () => {
+    const product = modifierProduct;
+    if (!product) return;
+    // Validar grupos obligatorios
+    for (const g of product.modifierGroups || []) {
+      const sel = modSelections[g.id] || [];
+      const min = g.required ? Math.max(1, g.minSelect) : g.minSelect;
+      if (sel.length < min) {
+        toast.error(`Elige ${min > 1 ? `${min} opciones` : 'una opción'} en "${g.name}"`);
+        return;
+      }
+    }
+    // Construir el snapshot de opciones elegidas
+    const mods: OrderItemModifier[] = [];
+    for (const g of product.modifierGroups || []) {
+      for (const optId of modSelections[g.id] || []) {
+        const opt = g.options.find(o => o.id === optId);
+        if (opt) mods.push({ groupName: g.name, optionName: opt.name, price: Number(opt.priceDelta) });
+      }
+    }
+    const unitPrice = Number(product.price) + modifierExtra(product);
+    setCart(prev => [...prev, { lineId: newLineId(), product, quantity: 1, unitPrice, subtotal: unitPrice, modifiers: mods }]);
+    setModifierProduct(null);
+    setModSelections({});
+  };
+
+  const updateQty = (lineId: string, delta: number) => {
     setCart(prev =>
       prev.map(item =>
-        item.product.id === productId
-          ? { ...item, quantity: Math.max(1, item.quantity + delta), subtotal: Math.max(1, item.quantity + delta) * Number(item.product.price) }
+        item.lineId === lineId
+          ? { ...item, quantity: Math.max(1, item.quantity + delta), subtotal: Math.max(1, item.quantity + delta) * item.unitPrice }
           : item
       ).filter(item => item.quantity > 0)
     );
   };
+
+  const removeLine = (lineId: string) => setCart(prev => prev.filter(item => item.lineId !== lineId));
 
   const totalCart = cart.reduce((s, i) => s + i.subtotal, 0);
 
@@ -179,7 +260,7 @@ export default function POSPage() {
         const res = await api.post<ApiResponse<Order>>('/orders/takeout', {
           branchId: currentBranch.id,
           customerName: customerNameInput.trim(),
-          items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: Number(i.product.price), subtotal: i.subtotal })),
+          items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: i.unitPrice, subtotal: i.subtotal, modifiers: i.modifiers })),
         });
         if (res.success) {
           toast.success('Pedido para llevar enviado a cocina');
@@ -192,7 +273,7 @@ export default function POSPage() {
         const res = await api.post<ApiResponse<Order>>('/orders', {
           tableId: selectedTable!.id,
           branchId: currentBranch.id,
-          items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: Number(i.product.price), subtotal: i.subtotal })),
+          items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: i.unitPrice, subtotal: i.subtotal, modifiers: i.modifiers })),
         });
         if (res.success) {
           toast.success('Pedido enviado a cocina');
@@ -211,7 +292,7 @@ export default function POSPage() {
     setSubmitting(true);
     try {
       const res = await api.post<ApiResponse<Order>>(`/orders/${currentOrder.id}/items`, {
-        items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: Number(i.product.price), subtotal: i.subtotal })),
+        items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: i.unitPrice, subtotal: i.subtotal, modifiers: i.modifiers })),
       });
       if (res.success) {
         toast.success('Productos agregados y enviados a cocina');
@@ -263,12 +344,16 @@ export default function POSPage() {
   const printReceipt = (order: Order) => {
     const w = window.open('', '_blank');
     if (!w) return;
-    const itemsHtml = order.items.map(item => `
+    const itemsHtml = order.items.map(item => {
+      const mods = (item.modifiers || []).map(m =>
+        `<tr><td colspan="4" style="text-align:left;font-size:10px;color:#555;padding-left:8px">+ ${m.optionName}${Number(m.price) > 0 ? ` ($${Number(m.price).toFixed(2)})` : ''}</td></tr>`
+      ).join('');
+      return `
       <tr><td style="text-align:left">${item.product?.name || 'Producto'}</td>
       <td style="text-align:center">${item.quantity}</td>
       <td style="text-align:right">$${Number(item.unitPrice).toFixed(2)}</td>
-      <td style="text-align:right">$${Number(item.subtotal).toFixed(2)}</td></tr>`
-    ).join('');
+      <td style="text-align:right">$${Number(item.subtotal).toFixed(2)}</td></tr>${mods}`;
+    }).join('');
     const payHtml = (order.payments || []).map(p =>
       `<tr><td style="text-align:left">${getPaymentMethodLabel(p.method)}</td><td style="text-align:right">$${Number(p.amount).toFixed(2)}</td></tr>`
     ).join('');
@@ -466,6 +551,11 @@ export default function POSPage() {
                       <div className="flex items-center justify-center rounded-lg bg-gradient-to-br from-milk-100 to-milk-200 mb-1.5 h-12"><span className="text-xl">🥛</span></div>
                       <h3 className="text-xs font-medium text-cocoa-900 leading-tight">{product.name}</h3>
                       <p className="text-xs font-bold text-cocoa-600 mt-0.5">{formatCurrency(Number(product.price))}</p>
+                      {product.modifierGroups && product.modifierGroups.length > 0 && (
+                        <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-cocoa-100 px-1.5 py-0.5 text-[9px] font-semibold text-cocoa-600">
+                          <Plus size={9} /> Opciones
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -477,14 +567,27 @@ export default function POSPage() {
                 {cart.length === 0 ? <p className="text-xs text-cocoa-300 text-center py-4">Selecciona productos</p> : (
                   <div className="space-y-1.5">
                     {cart.map(item => (
-                      <div key={item.product.id} className="flex items-center gap-2 bg-white rounded-xl p-2 text-xs shadow-sm shadow-cocoa-900/5 border border-milk-200/60">
-                        <div className="flex-1 min-w-0"><p className="truncate font-medium text-cocoa-800">{item.product.name}</p></div>
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => updateQty(item.product.id, -1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
-                          <span className="w-6 text-center font-semibold text-cocoa-800">{item.quantity}</span>
-                          <button onClick={() => updateQty(item.product.id, 1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Plus size={12} /></button>
+                      <div key={item.lineId} className="bg-white rounded-xl p-2 text-xs shadow-sm shadow-cocoa-900/5 border border-milk-200/60">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 min-w-0"><p className="truncate font-medium text-cocoa-800">{item.product.name}</p></div>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => updateQty(item.lineId, -1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
+                            <span className="w-6 text-center font-semibold text-cocoa-800">{item.quantity}</span>
+                            <button onClick={() => updateQty(item.lineId, 1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Plus size={12} /></button>
+                          </div>
+                          <span className="w-16 text-right font-semibold text-cocoa-700">{formatCurrency(item.subtotal)}</span>
+                          <button onClick={() => removeLine(item.lineId)} className="text-red-300 hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
                         </div>
-                        <span className="w-16 text-right font-semibold text-cocoa-700">{formatCurrency(item.subtotal)}</span>
+                        {item.modifiers.length > 0 && (
+                          <ul className="mt-1 ml-1 space-y-0.5">
+                            {item.modifiers.map((m, mi) => (
+                              <li key={mi} className="text-[10px] text-cocoa-400 flex justify-between gap-2">
+                                <span className="truncate">+ {m.optionName}</span>
+                                {Number(m.price) > 0 && <span className="shrink-0">{formatCurrency(Number(m.price))}</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -525,6 +628,11 @@ export default function POSPage() {
                       <div className="flex items-center justify-center rounded-lg bg-gradient-to-br from-milk-100 to-milk-200 mb-1.5 h-12"><span className="text-xl">🥛</span></div>
                       <h3 className="text-xs font-medium text-cocoa-900 leading-tight">{product.name}</h3>
                       <p className="text-xs font-bold text-cocoa-600 mt-0.5">{formatCurrency(Number(product.price))}</p>
+                      {product.modifierGroups && product.modifierGroups.length > 0 && (
+                        <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-cocoa-100 px-1.5 py-0.5 text-[9px] font-semibold text-cocoa-600">
+                          <Plus size={9} /> Opciones
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -536,14 +644,27 @@ export default function POSPage() {
                 {cart.length === 0 ? <p className="text-xs text-cocoa-300 text-center py-4">Selecciona productos</p> : (
                   <div className="space-y-1.5">
                     {cart.map(item => (
-                      <div key={item.product.id} className="flex items-center gap-2 bg-white rounded-xl p-2 text-xs shadow-sm shadow-cocoa-900/5 border border-milk-200/60">
-                        <div className="flex-1 min-w-0"><p className="truncate font-medium text-cocoa-800">{item.product.name}</p></div>
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => updateQty(item.product.id, -1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
-                          <span className="w-6 text-center font-semibold text-cocoa-800">{item.quantity}</span>
-                          <button onClick={() => updateQty(item.product.id, 1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Plus size={12} /></button>
+                      <div key={item.lineId} className="bg-white rounded-xl p-2 text-xs shadow-sm shadow-cocoa-900/5 border border-milk-200/60">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 min-w-0"><p className="truncate font-medium text-cocoa-800">{item.product.name}</p></div>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => updateQty(item.lineId, -1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
+                            <span className="w-6 text-center font-semibold text-cocoa-800">{item.quantity}</span>
+                            <button onClick={() => updateQty(item.lineId, 1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Plus size={12} /></button>
+                          </div>
+                          <span className="w-16 text-right font-semibold text-cocoa-700">{formatCurrency(item.subtotal)}</span>
+                          <button onClick={() => removeLine(item.lineId)} className="text-red-300 hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
                         </div>
-                        <span className="w-16 text-right font-semibold text-cocoa-700">{formatCurrency(item.subtotal)}</span>
+                        {item.modifiers.length > 0 && (
+                          <ul className="mt-1 ml-1 space-y-0.5">
+                            {item.modifiers.map((m, mi) => (
+                              <li key={mi} className="text-[10px] text-cocoa-400 flex justify-between gap-2">
+                                <span className="truncate">+ {m.optionName}</span>
+                                {Number(m.price) > 0 && <span className="shrink-0">{formatCurrency(Number(m.price))}</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -568,11 +689,20 @@ export default function POSPage() {
               <h4 className="text-sm font-semibold text-cocoa-900 mb-3">Productos consumidos</h4>
               <div className="flex-1 overflow-y-auto bg-milk-50/80 rounded-2xl border border-milk-200/70 p-4 space-y-2">
                 {currentOrder.items?.map(item => (
-                  <div key={item.id} className="flex justify-between items-center bg-white rounded-xl px-3 py-2.5 shadow-sm shadow-cocoa-900/5 border border-milk-200/60">
-                    <span className="text-sm text-cocoa-700">
-                      {item.product?.name} <span className="text-cocoa-300">x{item.quantity}</span>
-                    </span>
-                    <span className="text-sm font-semibold text-cocoa-900">{formatCurrency(item.subtotal)}</span>
+                  <div key={item.id} className="bg-white rounded-xl px-3 py-2.5 shadow-sm shadow-cocoa-900/5 border border-milk-200/60">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-cocoa-700">
+                        {item.product?.name} <span className="text-cocoa-300">x{item.quantity}</span>
+                      </span>
+                      <span className="text-sm font-semibold text-cocoa-900">{formatCurrency(item.subtotal)}</span>
+                    </div>
+                    {item.modifiers && item.modifiers.length > 0 && (
+                      <ul className="mt-1 ml-1 space-y-0.5">
+                        {item.modifiers.map((m, mi) => (
+                          <li key={mi} className="text-[11px] text-cocoa-400">+ {m.optionName}{Number(m.price) > 0 ? ` (${formatCurrency(Number(m.price))})` : ''}</li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 ))}
                 <div className="border-t border-milk-200 pt-3 mt-3 flex justify-between items-center">
@@ -678,6 +808,67 @@ export default function POSPage() {
             </div>
           </div>
         </TableModal>
+      )}
+
+      {/* MODAL: Selección de opciones / modificadores */}
+      {modifierProduct && (
+        <div className="modal-overlay p-3" onClick={() => setModifierProduct(null)}>
+          <div className="w-full max-w-md modal-content flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-milk-200/70 px-5 py-4 shrink-0">
+              <div>
+                <h2 className="text-base font-semibold text-cocoa-900">{modifierProduct.name}</h2>
+                <p className="text-xs text-cocoa-400">{formatCurrency(Number(modifierProduct.price))} base</p>
+              </div>
+              <button onClick={() => setModifierProduct(null)} className="btn-ghost p-1.5 rounded-xl hover:bg-milk-100"><X size={18} /></button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+              {(modifierProduct.modifierGroups || []).map(group => {
+                const selected = modSelections[group.id] || [];
+                return (
+                  <div key={group.id}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-sm font-semibold text-cocoa-800">{group.name}</h3>
+                      {group.required
+                        ? <span className="text-[10px] font-semibold text-red-500 bg-red-50 rounded-full px-1.5 py-0.5">Obligatorio</span>
+                        : <span className="text-[10px] font-medium text-cocoa-400 bg-milk-100 rounded-full px-1.5 py-0.5">Opcional</span>}
+                      {group.maxSelect > 1 && <span className="text-[10px] text-cocoa-400">elige hasta {group.maxSelect}</span>}
+                    </div>
+                    <div className="space-y-1.5">
+                      {group.options.map(opt => {
+                        const isSel = selected.includes(opt.id);
+                        return (
+                          <button key={opt.id} onClick={() => toggleOption(group, opt.id)}
+                            className={`w-full flex items-center justify-between rounded-xl border px-3 py-2.5 text-left transition-all ${isSel ? 'border-cocoa-500 bg-cocoa-50/60 shadow-sm' : 'border-milk-200 bg-white hover:border-cocoa-300'}`}>
+                            <span className="flex items-center gap-2.5">
+                              <span className={`flex h-4 w-4 items-center justify-center border ${group.maxSelect > 1 ? 'rounded' : 'rounded-full'} ${isSel ? 'border-cocoa-500 bg-cocoa-500' : 'border-cocoa-300'}`}>
+                                {isSel && <span className={`bg-white ${group.maxSelect > 1 ? 'h-1.5 w-1.5' : 'h-1.5 w-1.5 rounded-full'}`} />}
+                              </span>
+                              <span className="text-sm text-cocoa-800">{opt.name}</span>
+                            </span>
+                            <span className="text-xs font-medium text-cocoa-500">
+                              {Number(opt.priceDelta) > 0 ? `+${formatCurrency(Number(opt.priceDelta))}` : 'Incluido'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="border-t border-milk-200/70 px-5 py-4 shrink-0 space-y-3 bg-white/60 rounded-b-3xl">
+              <div className="flex justify-between text-sm">
+                <span className="text-cocoa-500">Precio</span>
+                <span className="font-bold text-cocoa-900">{formatCurrency(Number(modifierProduct.price) + modifierExtra(modifierProduct))}</span>
+              </div>
+              <button onClick={confirmModifiers} className="btn-primary w-full py-2.5">
+                <Plus size={16} /> Agregar al pedido
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

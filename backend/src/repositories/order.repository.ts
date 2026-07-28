@@ -1,11 +1,20 @@
 import { prisma } from '../config/database';
 
+/** Forma de un item de pedido, con sus modificadores opcionales. */
+type OrderItemInput = {
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  modifiers?: Array<{ groupName: string; optionName: string; price: number }>;
+};
+
 export const orderRepository = {
   findById: (id: string) =>
     prisma.order.findUnique({
       where: { id },
       include: {
-        items: { include: { product: true } },
+        items: { include: { product: true, modifiers: true } },
         payments: true,
         kitchenSends: { include: { items: { include: { product: true } } }, orderBy: { createdAt: 'desc' } },
         user: { select: { id: true, name: true } },
@@ -17,7 +26,7 @@ export const orderRepository = {
     prisma.order.findFirst({
       where: { tableId, status: { not: 'CLOSED' } },
       include: {
-        items: { include: { product: true } },
+        items: { include: { product: true, modifiers: true } },
         payments: true,
         kitchenSends: { include: { items: { include: { product: true } } }, orderBy: { createdAt: 'desc' } },
       },
@@ -32,7 +41,7 @@ export const orderRepository = {
           : {}),
       },
       include: {
-        items: { include: { product: true } },
+        items: { include: { product: true, modifiers: true } },
         payments: true,
         table: true,
         user: { select: { id: true, name: true } },
@@ -55,7 +64,7 @@ export const orderRepository = {
 
   create: (data: {
     branchId: string; tableId: string; userId: string; customerName?: string | null;
-    notes?: string | null; items: Array<{ productId: string; quantity: number; unitPrice: number; subtotal: number }>;
+    notes?: string | null; items: OrderItemInput[];
   }) =>
     prisma.$transaction(async (tx) => {
       const total = data.items.reduce((s, i) => s + Number(i.subtotal), 0);
@@ -68,26 +77,29 @@ export const orderRepository = {
           notes: data.notes,
           status: 'OPEN',
           total,
-          items: { create: data.items.map(i => ({ ...i, sentToKitchen: false })) },
+          items: { create: data.items.map(toItemCreate) },
         },
       });
       return order;
     }),
 
-  addItems: (orderId: string, items: Array<{ productId: string; quantity: number; unitPrice: number; subtotal: number }>) =>
+  addItems: (orderId: string, items: OrderItemInput[]) =>
     prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId }, select: { total: true } });
       if (!order) throw new Error('Pedido no encontrado');
       const addTotal = items.reduce((s, i) => s + Number(i.subtotal), 0);
       const newTotal = Number(order.total) + addTotal;
       await tx.order.update({ where: { id: orderId }, data: { total: newTotal } });
-      const created = await tx.orderItem.createManyAndReturn({
-        data: items.map(i => ({ orderId, ...i, sentToKitchen: false })),
-      });
+      // createManyAndReturn no permite relaciones anidadas (modifiers),
+      // por eso se crea cada item individualmente.
+      const created = [] as Awaited<ReturnType<typeof tx.orderItem.create>>[];
+      for (const item of items) {
+        created.push(await tx.orderItem.create({ data: { orderId, ...toItemCreate(item) } }));
+      }
       return created;
     }),
 
-  createKitchenSend: (orderId: string, items: Array<{ productId: string; quantity: number }>) =>
+  createKitchenSend: (orderId: string, items: Array<{ productId: string; quantity: number; notes?: string | null }>) =>
     prisma.kitchenSend.create({
       data: {
         orderId,
@@ -131,3 +143,18 @@ export const orderRepository = {
     });
   },
 };
+
+/** Convierte un item de entrada en el objeto de creación de Prisma, anidando
+ *  sus modificadores como líneas hijas (snapshot histórico). */
+export function toItemCreate(i: OrderItemInput) {
+  return {
+    productId: i.productId,
+    quantity: i.quantity,
+    unitPrice: i.unitPrice,
+    subtotal: i.subtotal,
+    sentToKitchen: false,
+    ...(i.modifiers && i.modifiers.length > 0
+      ? { modifiers: { create: i.modifiers.map(m => ({ groupName: m.groupName, optionName: m.optionName, price: m.price })) } }
+      : {}),
+  };
+}

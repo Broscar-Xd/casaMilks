@@ -30,6 +30,7 @@ export interface KitchenSendItem {
   sendId: string;
   productId: string;
   quantity: number;
+  notes?: string | null;
   product?: Product;
 }
 
@@ -83,6 +84,36 @@ export interface Product {
   requiresPreparation: boolean;
   category?: Category;
   recipes?: Recipe[];
+  modifierGroups?: ModifierGroup[];
+}
+
+export interface ModifierGroup {
+  id: string;
+  productId: string;
+  name: string;
+  required: boolean;
+  minSelect: number;
+  maxSelect: number;
+  sortOrder: number;
+  active: boolean;
+  options: ModifierOption[];
+}
+
+export interface ModifierOption {
+  id: string;
+  groupId: string;
+  name: string;
+  priceDelta: number;
+  sortOrder: number;
+  active: boolean;
+}
+
+/** Opción elegida en una línea de pedido (snapshot). */
+export interface OrderItemModifier {
+  id?: string;
+  groupName: string;
+  optionName: string;
+  price: number;
 }
 
 export interface Ingredient {
@@ -124,6 +155,7 @@ export interface OrderItem {
   unitPrice: number;
   subtotal: number;
   product?: Product;
+  modifiers?: OrderItemModifier[];
 }
 
 export interface Payment {

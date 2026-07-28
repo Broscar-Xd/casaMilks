@@ -1,4 +1,4 @@
-import { orderRepository } from '../repositories/order.repository';
+import { orderRepository, toItemCreate } from '../repositories/order.repository';
 import { tableRepository } from '../repositories/table.repository';
 import { inventoryRepository } from '../repositories/inventory.repository';
 import { branchRepository } from '../repositories/branch.repository';
@@ -42,7 +42,7 @@ export const orderService = {
         notes: input.notes,
         status: 'OPEN',
         total: input.items.reduce((s, i) => s + Number(i.subtotal), 0),
-        items: { create: input.items.map(i => ({ ...i, sentToKitchen: false })) },
+        items: { create: input.items.map(toItemCreate) },
       },
     });
 
@@ -167,7 +167,7 @@ export const orderService = {
 
     return prisma.order.findUnique({
       where: { id: orderId },
-      include: { items: { include: { product: true } }, payments: true, table: true },
+      include: { items: { include: { product: true, modifiers: true } }, payments: true, table: true },
     });
   },
 };
@@ -176,7 +176,10 @@ export const orderService = {
  * Envía a cocina los productos que requieren preparación.
  * Crea un KitchenSend con solo esos items.
  */
-async function sendToKitchen(orderId: string, items: Array<{ productId: string; quantity: number }>) {
+async function sendToKitchen(
+  orderId: string,
+  items: Array<{ productId: string; quantity: number; modifiers?: Array<{ optionName: string }> }>
+) {
   const products = await prisma.product.findMany({
     where: { id: { in: items.map(i => i.productId) } },
     select: { id: true, requiresPreparation: true },
@@ -185,7 +188,14 @@ async function sendToKitchen(orderId: string, items: Array<{ productId: string; 
   const prepMap = new Map(products.map(p => [p.id, p.requiresPreparation]));
   const kitchenItems = items
     .filter(i => prepMap.get(i.productId) !== false)
-    .map(i => ({ productId: i.productId, quantity: i.quantity }));
+    .map(i => ({
+      productId: i.productId,
+      quantity: i.quantity,
+      // Detalle de opciones para que cocina sepa qué preparar
+      notes: i.modifiers && i.modifiers.length > 0
+        ? i.modifiers.map(m => m.optionName).join(', ')
+        : null,
+    }));
 
   if (kitchenItems.length > 0) {
     await orderRepository.createKitchenSend(orderId, kitchenItems);
