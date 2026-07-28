@@ -9,7 +9,14 @@ export const productRepository = {
         active: true,
         ...(categoryId ? { categoryId } : {}),
       },
-      include: { category: true },
+      include: {
+        category: true,
+        modifierGroups: {
+          where: { active: true },
+          include: { options: { where: { active: true }, orderBy: { sortOrder: 'asc' } } },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
       orderBy: { name: 'asc' },
     }),
 

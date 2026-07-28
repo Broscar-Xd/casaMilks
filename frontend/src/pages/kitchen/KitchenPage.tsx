@@ -73,9 +73,14 @@ export default function KitchenPage() {
               {/* Items */}
               <div className="px-4 py-3 space-y-2">
                 {send.items.map(item => (
-                  <div key={item.id} className="flex items-center gap-2.5">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cocoa-500 to-cocoa-700 text-xs font-bold text-milk-50 shadow-sm">{item.quantity}</span>
-                    <span className="text-sm font-medium text-cocoa-800">{item.product?.name || 'Producto'}</span>
+                  <div key={item.id} className="flex items-start gap-2.5">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cocoa-500 to-cocoa-700 text-xs font-bold text-milk-50 shadow-sm">{item.quantity}</span>
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium text-cocoa-800">{item.product?.name || 'Producto'}</span>
+                      {item.notes && (
+                        <p className="text-xs font-semibold text-cocoa-500 leading-tight mt-0.5">↳ {item.notes}</p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

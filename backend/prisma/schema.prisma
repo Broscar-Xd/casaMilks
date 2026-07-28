@@ -149,10 +149,52 @@ model Product {
   recipes     Recipe[]
   orderItems  OrderItem[]
   kitchenSendItems  KitchenSendItem[]
+  modifierGroups    ModifierGroup[]
 
   @@index([categoryId])
   @@index([branchId])
   @@map("products")
+}
+
+/// Grupo de opciones/modificadores de un producto (ej: "Elige tu bebida",
+/// "Agregar acompañamiento"). Permite ofrecer complementos dentro del mismo
+/// producto sin necesidad de cambiar de categoría.
+model ModifierGroup {
+  id        String   @id @default(uuid())
+  productId String   @map("product_id")
+  name      String
+  /// Si es obligatorio elegir al menos minSelect opciones para agregar el producto.
+  required  Boolean  @default(false)
+  /// Mínimo y máximo de opciones seleccionables dentro del grupo.
+  /// Ej: "Elige tu bebida" → min 1, max 1 (una sola). "Acompañamientos" → min 0, max 5.
+  minSelect Int      @default(0) @map("min_select")
+  maxSelect Int      @default(1) @map("max_select")
+  sortOrder Int      @default(0) @map("sort_order")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  product Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  options ModifierOption[]
+
+  @@index([productId])
+  @@map("modifier_groups")
+}
+
+/// Opción individual dentro de un grupo (ej: "Jugo frío", "Porción de huevo").
+/// priceDelta es el costo adicional: 0 = incluido en el precio del producto,
+/// > 0 = se suma al total.
+model ModifierOption {
+  id         String  @id @default(uuid())
+  groupId    String  @map("group_id")
+  name       String
+  priceDelta Decimal @default(0) @map("price_delta")
+  sortOrder  Int     @default(0) @map("sort_order")
+  active     Boolean @default(true)
+
+  group ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@map("modifier_options")
 }
 
 /// Insumos o ingredientes. Representan el inventario real.
@@ -293,12 +335,29 @@ model OrderItem {
   subtotal  Decimal
   sentToKitchen Boolean @default(false) @map("sent_to_kitchen")
 
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
+  order     Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product             @relation(fields: [productId], references: [id])
+  modifiers OrderItemModifier[]
 
   @@index([orderId])
   @@index([productId])
   @@map("order_items")
+}
+
+/// Opción elegida en una línea de pedido. Se guarda como "snapshot"
+/// (nombre y precio congelados al momento de la venta), igual que unitPrice,
+/// para no perder el histórico si luego cambia el modificador del producto.
+model OrderItemModifier {
+  id          String  @id @default(uuid())
+  orderItemId String  @map("order_item_id")
+  groupName   String  @map("group_name")
+  optionName  String  @map("option_name")
+  price       Decimal @default(0)
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([orderItemId])
+  @@map("order_item_modifiers")
 }
 
 /// Envíos individuales a cocina. Cada vez que se agregan productos
@@ -326,6 +385,9 @@ model KitchenSendItem {
   sendId    String @map("send_id")
   productId String @map("product_id")
   quantity  Int
+  /// Detalle de opciones elegidas para que cocina sepa qué preparar
+  /// (ej: "Jugo caliente, Porción de huevo").
+  notes     String?
 
   send    KitchenSend @relation(fields: [sendId], references: [id], onDelete: Cascade)
   product Product     @relation(fields: [productId], references: [id])
