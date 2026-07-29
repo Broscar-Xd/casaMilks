@@ -50,6 +50,17 @@ export default function POSPage() {
   // Payment
   const [payments, setPayments] = useState<Array<{ method: PaymentMethod; amount: number; referenceNumber: string; cashReceived: number }>>([]);
 
+  // Invoice modal
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [invoiceOrderRef, setInvoiceOrderRef] = useState<any>(null);
+  const [invoiceData, setInvoiceData] = useState({
+    invoiceName: '',
+    invoiceDocId: '',
+    invoiceEmail: '',
+    invoicePhone: '',
+    invoiceAddress: 'Latacunga',
+  });
+
   // Takeout orders
   const [takeoutOrders, setTakeoutOrders] = useState<Order[]>([]);
   const [showTakeoutModal, setShowTakeoutModal] = useState(false);
@@ -357,39 +368,59 @@ export default function POSPage() {
         setCurrentOrder(null);
         fetchTables();
         fetchTakeoutOrders();
-        if (res.data) printReceipt(res.data);
+        if (res.data) {
+          // Store the closed order data for printing/invoice
+          const closedOrder = res.data;
+          // Ask if they want invoice
+          setShowInvoiceModal(true);
+          // Store reference for printing later
+          setInvoiceOrderRef(closedOrder);
+        }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al cerrar venta');
     } finally { setSubmitting(false); }
   };
 
-  const printReceipt = (order: Order) => {
+  const printReceipt = (order: any) => {
     const w = window.open('', '_blank');
     if (!w) return;
-    const itemsHtml = order.items.map(item => `
+    const itemsHtml = order.items.map((item: any) => `
       <tr><td style="text-align:left">${item.product?.name || 'Producto'}</td>
       <td style="text-align:center">${item.quantity}</td>
       <td style="text-align:right">$${Number(item.unitPrice).toFixed(2)}</td>
       <td style="text-align:right">$${Number(item.subtotal).toFixed(2)}</td></tr>`
     ).join('');
-    const payHtml = (order.payments || []).map(p =>
+    const payHtml = (order.payments || []).map((p: any) =>
       `<tr><td style="text-align:left">${getPaymentMethodLabel(p.method)}</td><td style="text-align:right">$${Number(p.amount).toFixed(2)}</td></tr>`
     ).join('');
+    const hasInvoice = order.invoiceName || order.invoiceDocId;
+    const invoiceBlock = hasInvoice ? `
+      <div class="invoice-data">
+        <p><strong>Cliente:</strong> ${order.invoiceName || ''}</p>
+        <p><strong>Cédula:</strong> ${order.invoiceDocId || ''}</p>
+        ${order.invoiceEmail ? `<p><strong>Email:</strong> ${order.invoiceEmail}</p>` : ''}
+        ${order.invoicePhone ? `<p><strong>Teléfono:</strong> ${order.invoicePhone}</p>` : ''}
+        <p><strong>Dirección:</strong> ${order.invoiceAddress || 'Latacunga'}</p>
+      </div>` : '';
     w.document.write(`
       <html><head><title>Nota de Venta - Casa Milks</title>
       <style>body{font-family:'Courier New',monospace;font-size:12px;width:80mm;margin:0 auto;padding:10px}
       .header{text-align:center;border-bottom:1px dashed #000;padding-bottom:8px;margin-bottom:10px}
       .header p{margin:1px 0;font-size:11px}
+      .invoice-data{border-bottom:1px dashed #000;padding-bottom:8px;margin-bottom:10px;font-size:11px}
+      .invoice-data p{margin:1px 0}
       table{width:100%;border-collapse:collapse}th,td{padding:4px 2px}
       th{border-bottom:1px solid #000}.totals{margin-top:10px;border-top:1px dashed #000;padding-top:8px}
       .footer{text-align:center;margin-top:10px;font-size:10px}
       </style></head><body>
       <div class="header">
       <p><strong>NOTA DE VENTA</strong></p>
+      <p>Casa Milks</p>
       <p>Mesa: ${order.table?.name || 'Para llevar'}</p>
       ${order.customerName ? `<p>Cliente: ${order.customerName}</p>` : ''}
       <p>${new Date(order.createdAt).toLocaleString('es-EC')}</p></div>
+      ${invoiceBlock}
       <table><thead><tr><th>Producto</th><th>Cant</th><th>P.U.</th><th>Subtotal</th></tr></thead>
       <tbody>${itemsHtml}</tbody></table>
       <div class="totals"><table><tr><td><strong>TOTAL</strong></td><td style="text-align:right"><strong>$${Number(order.total).toFixed(2)}</strong></td></tr></table>
@@ -815,6 +846,74 @@ export default function POSPage() {
             </div>
           </div>
         </TableModal>
+      )}
+
+      {/* MODAL: Datos de factura */}
+      {showInvoiceModal && (
+        <div className="modal-overlay" onClick={() => { setShowInvoiceModal(false); if (invoiceOrderRef) printReceipt(invoiceOrderRef); }}>
+          <div className="w-full max-w-md modal-content mx-2 sm:mx-0" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-milk-200/70 px-6 py-4 bg-gradient-to-r from-milk-50/60 to-transparent rounded-t-3xl">
+              <h2 className="text-base font-semibold text-cocoa-900 flex items-center gap-2.5">
+                <span className="h-5 w-1 rounded-full bg-gradient-to-b from-cocoa-500 to-cocoa-700" />
+                Datos para factura
+              </h2>
+              <button onClick={() => { setShowInvoiceModal(false); if (invoiceOrderRef) printReceipt(invoiceOrderRef); }} className="btn-ghost p-1.5 rounded-xl hover:bg-milk-100">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-cocoa-500">Ingresa los datos del cliente para emitir la factura. Si no deseas factura, cierra esta ventana.</p>
+
+              <div>
+                <label className="label">Nombre completo *</label>
+                <input className="input" placeholder="Ej: Juan Pérez" value={invoiceData.invoiceName}
+                  onChange={e => setInvoiceData({ ...invoiceData, invoiceName: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Cédula / RUC *</label>
+                <input className="input" placeholder="Ej: 1234567890" value={invoiceData.invoiceDocId}
+                  onChange={e => setInvoiceData({ ...invoiceData, invoiceDocId: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Correo electrónico</label>
+                <input type="email" className="input" placeholder="ejemplo@correo.com" value={invoiceData.invoiceEmail}
+                  onChange={e => setInvoiceData({ ...invoiceData, invoiceEmail: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Teléfono</label>
+                <input className="input" placeholder="0999999999" value={invoiceData.invoicePhone}
+                  onChange={e => setInvoiceData({ ...invoiceData, invoicePhone: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Dirección</label>
+                <input className="input" placeholder="Latacunga" value={invoiceData.invoiceAddress}
+                  onChange={e => setInvoiceData({ ...invoiceData, invoiceAddress: e.target.value })} />
+              </div>
+            </div>
+            <div className="flex gap-3 border-t border-milk-200/70 px-6 py-4">
+              <button onClick={() => { setShowInvoiceModal(false); if (invoiceOrderRef) printReceipt(invoiceOrderRef); }} className="btn-secondary flex-1">
+                Sin factura
+              </button>
+              <button onClick={async () => {
+                if (!invoiceData.invoiceName.trim() || !invoiceData.invoiceDocId.trim()) {
+                  toast.error('Nombre y cédula son requeridos');
+                  return;
+                }
+                if (!invoiceOrderRef) return;
+                try {
+                  await api.patch(`/orders/${invoiceOrderRef.id}/invoice`, invoiceData);
+                  toast.success('Factura registrada');
+                  setShowInvoiceModal(false);
+                  printReceipt({ ...invoiceOrderRef, ...invoiceData });
+                } catch (err: any) {
+                  toast.error(err?.response?.data?.error || 'Error al guardar factura');
+                }
+              }} className="btn-primary flex-1">
+                Emitir factura
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* MODAL: Combo selector */}

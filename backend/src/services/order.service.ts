@@ -136,7 +136,17 @@ export const orderService = {
           },
         });
       }
-      await tx.order.update({ where: { id: orderId }, data: { status: 'CLOSED' } });
+
+      // Update order with invoice data if provided, and close
+      const updateData: any = { status: 'CLOSED' };
+      if (input.invoice) {
+        updateData.invoiceName = input.invoice.invoiceName;
+        updateData.invoiceDocId = input.invoice.invoiceDocId;
+        updateData.invoiceEmail = input.invoice.invoiceEmail || null;
+        updateData.invoicePhone = input.invoice.invoicePhone || null;
+        updateData.invoiceAddress = input.invoice.invoiceAddress || 'Latacunga';
+      }
+      await tx.order.update({ where: { id: orderId }, data: updateData });
       await tx.electronicReceipt.create({
         data: {
           orderId, branchId: order.branchId, sequential: seq,
@@ -177,6 +187,22 @@ export const orderService = {
     return prisma.order.findUnique({
       where: { id: orderId },
       include: { items: { include: { product: true } }, payments: true, table: true },
+    });
+  },
+
+  updateInvoice: async (orderId: string, input: { invoiceName: string; invoiceDocId: string; invoiceEmail?: string; invoicePhone?: string; invoiceAddress?: string }) => {
+    const order = await orderRepository.findById(orderId);
+    if (!order) throw new AppError('Pedido no encontrado', 404);
+
+    return prisma.order.update({
+      where: { id: orderId },
+      data: {
+        invoiceName: input.invoiceName,
+        invoiceDocId: input.invoiceDocId,
+        invoiceEmail: input.invoiceEmail || null,
+        invoicePhone: input.invoicePhone || null,
+        invoiceAddress: input.invoiceAddress || 'Latacunga',
+      },
     });
   },
 };

@@ -41,6 +41,13 @@ export const closeOrderSchema = z.object({
     cashReceived: z.number().positive().optional().nullable(),
     cashChange: z.number().min(0).optional().nullable(),
   })).min(1, 'Debe tener al menos una forma de pago'),
+  invoice: z.object({
+    invoiceName: z.string().min(1, 'Nombre requerido'),
+    invoiceDocId: z.string().min(1, 'Cédula/RUC requerido'),
+    invoiceEmail: z.string().optional().or(z.literal('')),
+    invoicePhone: z.string().optional().or(z.literal('')),
+    invoiceAddress: z.string().default('Latacunga'),
+  }).optional(),
 });
 
 export type CreateTableOrderInput = z.infer<typeof createTableOrderSchema>;

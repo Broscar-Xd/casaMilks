@@ -333,6 +333,11 @@ model Order {
   tableId      String?     @map("table_id")
   userId       String      @map("user_id")
   customerName String?     @map("customer_name")
+  invoiceName  String?     @map("invoice_name")
+  invoiceDocId String?     @map("invoice_doc_id")
+  invoiceEmail String?     @map("invoice_email")
+  invoicePhone String?     @map("invoice_phone")
+  invoiceAddress String?   @default("Latacunga") @map("invoice_address")
   status       OrderStatus @default(OPEN)
   total        Decimal
   notes        String?

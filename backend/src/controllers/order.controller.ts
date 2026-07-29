@@ -70,4 +70,11 @@ export const orderController = {
       res.json({ success: true, data: order });
     } catch (error) { next(error); }
   },
+
+  updateInvoice: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const order = await orderService.updateInvoice(p(req.params, 'id'), req.body);
+      res.json({ success: true, data: order });
+    } catch (error) { next(error); }
+  },
 };
