@@ -850,19 +850,19 @@ export default function POSPage() {
 
       {/* MODAL: Datos de factura */}
       {showInvoiceModal && (
-        <div className="modal-overlay" onClick={() => { setShowInvoiceModal(false); if (invoiceOrderRef) printReceipt(invoiceOrderRef); }}>
+        <div className="modal-overlay" onClick={() => setShowInvoiceModal(false)}>
           <div className="w-full max-w-md modal-content mx-2 sm:mx-0" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-milk-200/70 px-6 py-4 bg-gradient-to-r from-milk-50/60 to-transparent rounded-t-3xl">
               <h2 className="text-base font-semibold text-cocoa-900 flex items-center gap-2.5">
                 <span className="h-5 w-1 rounded-full bg-gradient-to-b from-cocoa-500 to-cocoa-700" />
                 Datos para factura
               </h2>
-              <button onClick={() => { setShowInvoiceModal(false); if (invoiceOrderRef) printReceipt(invoiceOrderRef); }} className="btn-ghost p-1.5 rounded-xl hover:bg-milk-100">
+              <button onClick={() => setShowInvoiceModal(false)} className="btn-ghost p-1.5 rounded-xl hover:bg-milk-100">
                 <X size={18} />
               </button>
             </div>
             <div className="p-5 space-y-4">
-              <p className="text-sm text-cocoa-500">Ingresa los datos del cliente para emitir la factura. Si no deseas factura, cierra esta ventana.</p>
+              <p className="text-sm text-cocoa-500">Ingresa los datos del cliente para emitir la factura.</p>
 
               <div>
                 <label className="label">Nombre completo *</label>
@@ -891,7 +891,7 @@ export default function POSPage() {
               </div>
             </div>
             <div className="flex gap-3 border-t border-milk-200/70 px-6 py-4">
-              <button onClick={() => { setShowInvoiceModal(false); if (invoiceOrderRef) printReceipt(invoiceOrderRef); }} className="btn-secondary flex-1">
+              <button onClick={() => setShowInvoiceModal(false)} className="btn-secondary flex-1">
                 Sin factura
               </button>
               <button onClick={async () => {
@@ -901,12 +901,16 @@ export default function POSPage() {
                 }
                 if (!invoiceOrderRef) return;
                 try {
-                  await api.patch(`/orders/${invoiceOrderRef.id}/invoice`, invoiceData);
-                  toast.success('Factura registrada');
-                  setShowInvoiceModal(false);
-                  printReceipt({ ...invoiceOrderRef, ...invoiceData });
+                  const res = await api.patch<any>(`/orders/${invoiceOrderRef.id}/invoice`, invoiceData);
+                  if (res.success) {
+                    toast.success('Factura registrada');
+                    setShowInvoiceModal(false);
+                    // Print with invoice data
+                    const updatedOrder = { ...invoiceOrderRef, ...invoiceData };
+                    printReceipt(updatedOrder);
+                  }
                 } catch (err: any) {
-                  toast.error(err?.response?.data?.error || 'Error al guardar factura');
+                  toast.error(err?.response?.data?.error || err?.message || 'Error al guardar factura');
                 }
               }} className="btn-primary flex-1">
                 Emitir factura
