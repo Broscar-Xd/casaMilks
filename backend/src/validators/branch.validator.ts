@@ -14,14 +14,16 @@ export const updateBranchSchema = z.object({
 });
 
 export const updateFiscalConfigSchema = z.object({
-  ruc: z.string().min(13).max(13).optional(),
+  ruc: z.string().min(13).max(13).optional().or(z.literal('')),
   businessName: z.string().optional(),
   tradeName: z.string().optional(),
   receiptAuthorization: z.string().optional(),
   rimpeLegend: z.string().optional(),
   address: z.string().optional(),
   phone: z.string().optional().nullable(),
-  email: z.string().email().optional().nullable(),
+  email: z.string().email().optional().nullable().or(z.literal('')),
+  establishmentCode: z.string().optional().or(z.literal('')),
+  emissionPointCode: z.string().optional().or(z.literal('')),
 });
 
 export type CreateBranchInput = z.infer<typeof createBranchSchema>;

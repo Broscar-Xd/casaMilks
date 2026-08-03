@@ -15,6 +15,7 @@ export default function BranchesPage() {
   const [fiscalForm, setFiscalForm] = useState({
     ruc: '', businessName: '', tradeName: '', receiptAuthorization: '',
     rimpeLegend: 'Contribuyente RIMPE Negocio Popular', address: '', phone: '', email: '',
+    establishmentCode: '001', emissionPointCode: '001',
   });
 
   const fetchData = async () => {
@@ -51,11 +52,14 @@ export default function BranchesPage() {
         address: branch.fiscalConfig.address,
         phone: branch.phone || '',
         email: '',
+        establishmentCode: (branch.fiscalConfig as any).establishmentCode || '001',
+        emissionPointCode: (branch.fiscalConfig as any).emissionPointCode || '001',
       });
     } else {
       setFiscalForm({
         ruc: '', businessName: '', tradeName: '', receiptAuthorization: '',
         rimpeLegend: 'Contribuyente RIMPE Negocio Popular', address: branch.address, phone: branch.phone || '', email: '',
+        establishmentCode: '001', emissionPointCode: '001',
       });
     }
     setShowFiscal(true);
@@ -178,6 +182,26 @@ export default function BranchesPage() {
               <div>
                 <label className="label">Dirección (fiscal)</label>
                 <input className="input" value={fiscalForm.address} onChange={(e) => setFiscalForm({ ...fiscalForm, address: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Código Establecimiento</label>
+                  <input className="input" maxLength={3} value={fiscalForm.establishmentCode} onChange={(e) => setFiscalForm({ ...fiscalForm, establishmentCode: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">Punto de Emisión</label>
+                  <input className="input" maxLength={3} value={fiscalForm.emissionPointCode} onChange={(e) => setFiscalForm({ ...fiscalForm, emissionPointCode: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Teléfono</label>
+                  <input className="input" value={fiscalForm.phone} onChange={(e) => setFiscalForm({ ...fiscalForm, phone: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">Email</label>
+                  <input type="email" className="input" value={fiscalForm.email} onChange={(e) => setFiscalForm({ ...fiscalForm, email: e.target.value })} />
+                </div>
               </div>
             </div>
             <div className="flex gap-3 border-t border-surface-100 px-6 py-4">
