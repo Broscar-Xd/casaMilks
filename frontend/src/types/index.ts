@@ -63,6 +63,10 @@ export interface FiscalConfig {
   currentSequential: number;
   rimpeLegend: string;
   address: string;
+  establishmentCode?: string;
+  emissionPointCode?: string;
+  phone?: string | null;
+  email?: string | null;
 }
 
 export interface Category {

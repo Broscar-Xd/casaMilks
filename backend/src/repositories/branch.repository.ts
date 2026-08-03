@@ -2,7 +2,10 @@ import { prisma } from '../config/database';
 
 export const branchRepository = {
   list: () =>
-    prisma.branch.findMany({ orderBy: { name: 'asc' } }),
+    prisma.branch.findMany({
+      include: { fiscalConfig: true },
+      orderBy: { name: 'asc' },
+    }),
 
   findById: (id: string) =>
     prisma.branch.findUnique({

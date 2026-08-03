@@ -52,8 +52,8 @@ export default function BranchesPage() {
         address: branch.fiscalConfig.address,
         phone: branch.phone || '',
         email: '',
-        establishmentCode: (branch.fiscalConfig as any).establishmentCode || '001',
-        emissionPointCode: (branch.fiscalConfig as any).emissionPointCode || '001',
+        establishmentCode: branch.fiscalConfig.establishmentCode || '001',
+        emissionPointCode: branch.fiscalConfig.emissionPointCode || '001',
       });
     } else {
       setFiscalForm({
