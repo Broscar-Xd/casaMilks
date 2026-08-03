@@ -50,8 +50,8 @@ export default function BranchesPage() {
         receiptAuthorization: branch.fiscalConfig.receiptAuthorization,
         rimpeLegend: branch.fiscalConfig.rimpeLegend,
         address: branch.fiscalConfig.address,
-        phone: branch.phone || '',
-        email: '',
+        phone: branch.fiscalConfig.phone || branch.phone || '',
+        email: branch.fiscalConfig.email || '',
         establishmentCode: branch.fiscalConfig.establishmentCode || '001',
         emissionPointCode: branch.fiscalConfig.emissionPointCode || '001',
       });
