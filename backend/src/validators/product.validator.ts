@@ -8,6 +8,7 @@ export const createProductSchema = z.object({
   branchId: z.string().uuid('Local inválido'),
   image: z.string().optional(),
   requiresPreparation: z.boolean().optional(),
+  taxRate: z.number().min(0).max(15).optional(),
 });
 
 export const updateProductSchema = z.object({
@@ -19,6 +20,7 @@ export const updateProductSchema = z.object({
   image: z.string().optional(),
   active: z.boolean().optional(),
   requiresPreparation: z.boolean().optional(),
+  taxRate: z.number().min(0).max(15).optional(),
 });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;

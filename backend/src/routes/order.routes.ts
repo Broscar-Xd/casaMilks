@@ -24,3 +24,4 @@ orderRoutes.post('/', validate(createTableOrderSchema), orderController.create);
 orderRoutes.post('/:id/items', validate(addItemsToOrderSchema), orderController.addItems);
 orderRoutes.post('/:id/close', validate(closeOrderSchema), orderController.close);
 orderRoutes.patch('/:id/invoice', validate(invoiceSchema), orderController.updateInvoice);
+orderRoutes.post('/:id/emit-invoice', orderController.emitInvoice);

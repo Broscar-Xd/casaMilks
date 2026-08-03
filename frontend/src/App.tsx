@@ -19,6 +19,7 @@ import ClosesPage from '@/pages/admin/ClosesPage';
 import ReportsPage from '@/pages/admin/ReportsPage';
 import SuppliersPage from '@/pages/admin/SuppliersPage';
 import SettingsPage from '@/pages/admin/SettingsPage';
+import SignaturesPage from '@/pages/admin/SignaturesPage';
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
               <Route path="/admin/suppliers" element={<SuppliersPage />} />
               <Route path="/admin/reports" element={<ReportsPage />} />
               <Route path="/admin/settings" element={<SettingsPage />} />
+              <Route path="/admin/signatures" element={<SignaturesPage />} />
               <Route path="/" element={<Navigate to="/pos" replace />} />
             </Route>
             <Route path="*" element={<Navigate to="/pos" replace />} />

@@ -24,6 +24,7 @@ export const productService = {
       price: input.price,
       image: input.image,
       requiresPreparation: input.requiresPreparation,
+      taxRate: input.taxRate ?? 0,
       category: { connect: { id: input.categoryId } },
       branch: { connect: { id: input.branchId } },
     }),

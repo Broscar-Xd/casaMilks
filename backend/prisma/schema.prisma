@@ -20,6 +20,7 @@ model Branch {
 
   fiscalConfig        BranchFiscalConfig?
   receiptSequences    ReceiptSequence[]
+  digitalSignatures   DigitalSignature[]
   users               User[]
   products            Product[]
   orders              Order[]
@@ -43,6 +44,8 @@ model BranchFiscalConfig {
   tradeName           String @map("trade_name")
   receiptAuthorization String @map("receipt_authorization")
   currentSequential   Int    @default(1) @map("current_sequential")
+  establishmentCode   String @default("001") @map("establishment_code")
+  emissionPointCode   String @default("001") @map("emission_point_code")
   digitalSignature    String? @map("digital_signature")
   rimpeLegend         String @default("Contribuyente RIMPE Negocio Popular") @map("rimpe_legend")
   address             String
@@ -52,6 +55,27 @@ model BranchFiscalConfig {
   branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   @@map("branch_fiscal_configs")
+}
+
+/// Firma electrónica SRI (.p12) por local. Se guarda en base64 en BD.
+/// La clave de acceso se cifra simple (se puede mejorar con ENCRYPTION_KEY).
+model DigitalSignature {
+  id         String   @id @default(uuid())
+  branchId   String   @unique @map("branch_id")
+  label      String   @default("Firma Electrónica")
+  p12Base64  String   @map("p12_base64")
+  password   String
+  certSubject String  @map("cert_subject")
+  certSerial String   @map("cert_serial")
+  validFrom  DateTime? @map("valid_from")
+  validTo    DateTime? @map("valid_to")
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@map("digital_signatures")
 }
 
 /// Secuenciales de comprobantes por año fiscal y local.
@@ -214,6 +238,7 @@ model Product {
   image       String?
   active      Boolean  @default(true)
   requiresPreparation Boolean @default(true) @map("requires_preparation")
+  taxRate     Decimal  @default(0) @map("tax_rate") // 0 | 5 | 15 (IVA Ecuador)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -443,11 +468,17 @@ model ElectronicReceipt {
   branchId      String   @map("branch_id")
   sequential    Int      @map("sequential")
   authorization String   @map("authorization")
+  claveAcceso   String?  @map("clave_acceso")
+  numeroAutorizacion String? @map("numero_autorizacion")
+  ambiente      String?  @default("1") // 1=pruebas, 2=producción
   xmlContent    String?  @map("xml_content")
+  xmlAutorizado String?  @map("xml_autorizado")
+  errorMessage  String?  @map("error_message")
   pdfUrl        String?  @map("pdf_url")
   status        String   @default("EMITTED")
-  // Receipt status: EMITTED | CANCELLED
+  // Receipt status: EMITTED | PENDING | AUTHORIZED | REJECTED | CANCELLED
   createdAt     DateTime @default(now()) @map("created_at")
+  authorizedAt  DateTime? @map("authorized_at")
 
   order  Order  @relation(fields: [orderId], references: [id])
   branch Branch @relation(fields: [branchId], references: [id])

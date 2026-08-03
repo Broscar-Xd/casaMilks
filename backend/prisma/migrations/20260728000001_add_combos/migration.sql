@@ -32,6 +32,8 @@ CREATE TABLE "branch_fiscal_configs" (
     "trade_name" TEXT NOT NULL,
     "receipt_authorization" TEXT NOT NULL,
     "current_sequential" INTEGER NOT NULL DEFAULT 1,
+    "establishment_code" TEXT NOT NULL DEFAULT '001',
+    "emission_point_code" TEXT NOT NULL DEFAULT '001',
     "digital_signature" TEXT,
     "rimpe_legend" TEXT NOT NULL DEFAULT 'Contribuyente RIMPE Negocio Popular',
     "address" TEXT NOT NULL,
@@ -39,6 +41,24 @@ CREATE TABLE "branch_fiscal_configs" (
     "email" TEXT,
 
     CONSTRAINT "branch_fiscal_configs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "digital_signatures" (
+    "id" TEXT NOT NULL,
+    "branch_id" TEXT NOT NULL,
+    "label" TEXT NOT NULL DEFAULT 'Firma Electr├│nica',
+    "p12_base64" TEXT NOT NULL,
+    "password" TEXT NOT NULL,
+    "cert_subject" TEXT NOT NULL,
+    "cert_serial" TEXT NOT NULL,
+    "valid_from" TIMESTAMP(3),
+    "valid_to" TIMESTAMP(3),
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "digital_signatures_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -154,6 +174,7 @@ CREATE TABLE "products" (
     "image" TEXT,
     "active" BOOLEAN NOT NULL DEFAULT true,
     "requires_preparation" BOOLEAN NOT NULL DEFAULT true,
+    "tax_rate" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -283,10 +304,16 @@ CREATE TABLE "electronic_receipts" (
     "branch_id" TEXT NOT NULL,
     "sequential" INTEGER NOT NULL,
     "authorization" TEXT NOT NULL,
+    "clave_acceso" TEXT,
+    "numero_autorizacion" TEXT,
+    "ambiente" TEXT DEFAULT '1',
     "xml_content" TEXT,
+    "xml_autorizado" TEXT,
+    "error_message" TEXT,
     "pdf_url" TEXT,
     "status" TEXT NOT NULL DEFAULT 'EMITTED',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "authorized_at" TIMESTAMP(3),
 
     CONSTRAINT "electronic_receipts_pkey" PRIMARY KEY ("id")
 );
@@ -333,6 +360,9 @@ CREATE UNIQUE INDEX "branches_name_key" ON "branches"("name");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "branch_fiscal_configs_branch_id_key" ON "branch_fiscal_configs"("branch_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "digital_signatures_branch_id_key" ON "digital_signatures"("branch_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "receipt_sequences_branch_id_year_type_key" ON "receipt_sequences"("branch_id", "year", "type");
@@ -453,6 +483,9 @@ CREATE INDEX "supplier_payments_created_at_idx" ON "supplier_payments"("created_
 
 -- AddForeignKey
 ALTER TABLE "branch_fiscal_configs" ADD CONSTRAINT "branch_fiscal_configs_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "digital_signatures" ADD CONSTRAINT "digital_signatures_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "receipt_sequences" ADD CONSTRAINT "receipt_sequences_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("id") ON DELETE CASCADE ON UPDATE CASCADE;

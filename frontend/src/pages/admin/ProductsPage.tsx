@@ -18,7 +18,7 @@ export default function ProductsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', price: 0, categoryId: '', branchId: '', requiresPreparation: true });
+  const [form, setForm] = useState({ name: '', description: '', price: 0, categoryId: '', branchId: '', requiresPreparation: true, taxRate: 0 });
   const [productRecipes, setProductRecipes] = useState<Array<{ ingredientId: string; ingredientName: string; quantity: number }>>([]);
 
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function ProductsPage() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: '', description: '', price: 0, categoryId: categories[0]?.id || '', branchId: currentBranch?.id || '', requiresPreparation: true });
+    setForm({ name: '', description: '', price: 0, categoryId: categories[0]?.id || '', branchId: currentBranch?.id || '', requiresPreparation: true, taxRate: 0 });
     setProductRecipes([]);
     setShowModal(true);
   };
@@ -57,6 +57,7 @@ export default function ProductsPage() {
       categoryId: product.categoryId,
       branchId: product.branchId,
       requiresPreparation: product.requiresPreparation ?? true,
+      taxRate: Number(product.taxRate || 0),
     });
 
     // Cargar receta existente
@@ -257,6 +258,19 @@ export default function ProductsPage() {
                       <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
                   </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">IVA (facturación)</label>
+                  <select className="input" value={form.taxRate} onChange={(e) => setForm({ ...form, taxRate: parseFloat(e.target.value) || 0 })}>
+                    <option value={0}>0%</option>
+                    <option value={5}>5% (reducido)</option>
+                    <option value={15}>15%</option>
+                  </select>
+                </div>
+                <div className="flex items-end pb-1">
+                  <p className="text-xs text-cocoa-300">Se aplica al emitir factura electrónica</p>
                 </div>
               </div>
               <div>

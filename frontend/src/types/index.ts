@@ -131,8 +131,20 @@ export interface Product {
   image: string | null;
   active: boolean;
   requiresPreparation: boolean;
+  taxRate?: number;
   category?: Category;
   recipes?: Recipe[];
+}
+
+export interface DigitalSignature {
+  id: string;
+  label: string;
+  certSubject: string;
+  certSerial: string;
+  validFrom: string | null;
+  validTo: string | null;
+  active: boolean;
+  createdAt?: string;
 }
 
 export interface Ingredient {

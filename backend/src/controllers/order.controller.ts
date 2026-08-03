@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { orderService } from '../services/order.service';
+import { emitirFacturaElectronica } from '../services/sri/sri.service';
 import { AuthenticatedRequest } from '../types';
 
 const p = (params: Record<string, string | string[]>, key: string): string =>
@@ -75,6 +76,13 @@ export const orderController = {
     try {
       const order = await orderService.updateInvoice(p(req.params, 'id'), req.body);
       res.json({ success: true, data: order });
+    } catch (error) { next(error); }
+  },
+
+  emitInvoice: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const result = await emitirFacturaElectronica(p(req.params, 'id'));
+      res.json({ success: true, data: result });
     } catch (error) { next(error); }
   },
 };
