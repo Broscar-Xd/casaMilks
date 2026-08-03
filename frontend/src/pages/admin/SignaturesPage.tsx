@@ -216,11 +216,6 @@ export default function SignaturesPage() {
         </div>
       </div>
 
-      <p className="mt-4 text-xs text-cocoa-300">
-        💡 La firma se valida al guardar: si el archivo o la clave son incorrectos, el sistema te avisará.
-        El ambiente actual es <span className="font-semibold text-cocoa-500">PRUEBAS (celcer.sri.gob.ec)</span>.
-        Para producción se debe cambiar la variable <code className="bg-milk-100 px-1 rounded">SRI_AMBIENTE=2</code>.
-      </p>
     </div>
   );
 }
