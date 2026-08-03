@@ -3,7 +3,7 @@ import { useBranch } from '@/contexts/BranchContext';
 import { api } from '@/services/api';
 import { formatCurrency, getPaymentMethodLabel } from '@/lib/utils';
 import toast from 'react-hot-toast';
-import { Loader2, Plus, Minus, Trash2, Receipt, ChefHat, ShoppingCart, X, Search, Banknote, CreditCard, Smartphone, Package, Layers, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Plus, Minus, Trash2, Receipt, ChefHat, ShoppingCart, X, Search, Banknote, CreditCard, Smartphone, Package, Layers, CheckCircle, XCircle, FileText, ChevronRight, ChevronLeft } from 'lucide-react';
 import type { TableItem, Product, Category, Order, OrderItem, ApiResponse, PaymentMethod, KitchenSend, ComboLine } from '@/types';
 
 export default function POSPage() {
@@ -52,6 +52,7 @@ export default function POSPage() {
 
   // Invoice modal
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showInvoiceForm, setShowInvoiceForm] = useState(false);
   const [invoiceOrderRef, setInvoiceOrderRef] = useState<any>(null);
   const [emittingInvoice, setEmittingInvoice] = useState(false);
   const [invoiceResult, setInvoiceResult] = useState<{ claveAcceso?: string; numeroAutorizacion?: string; estado?: string; mensajes?: Array<{ identificador: string; mensaje: string }> } | null>(null);
@@ -374,6 +375,8 @@ export default function POSPage() {
           // Store the closed order data for printing/invoice
           const closedOrder = res.data;
           // Ask if they want invoice
+          setShowInvoiceForm(false);
+          setInvoiceResult(null);
           setShowInvoiceModal(true);
           // Store reference for printing later
           setInvoiceOrderRef(closedOrder);
@@ -850,142 +853,188 @@ export default function POSPage() {
         </TableModal>
       )}
 
-      {/* MODAL: Datos de factura */}
+      {/* MODAL: Tipo de comprobante (Consumidor final vs Factura) */}
       {showInvoiceModal && (
         <div className="modal-overlay" onClick={() => setShowInvoiceModal(false)}>
           <div className="w-full max-w-md modal-content mx-2 sm:mx-0" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-milk-200/70 px-6 py-4 bg-gradient-to-r from-milk-50/60 to-transparent rounded-t-3xl">
               <h2 className="text-base font-semibold text-cocoa-900 flex items-center gap-2.5">
                 <span className="h-5 w-1 rounded-full bg-gradient-to-b from-cocoa-500 to-cocoa-700" />
-                Datos para factura
+                Tipo de comprobante
               </h2>
               <button onClick={() => setShowInvoiceModal(false)} className="btn-ghost p-1.5 rounded-xl hover:bg-milk-100">
                 <X size={18} />
               </button>
             </div>
-            <div className="p-5 space-y-4">
-              <p className="text-sm text-cocoa-500">Ingresa los datos del cliente para emitir la factura.</p>
 
-              <div>
-                <label className="label">Nombre completo *</label>
-                <input className="input" placeholder="Ej: Juan Pérez" value={invoiceData.invoiceName}
-                  onChange={e => setInvoiceData({ ...invoiceData, invoiceName: e.target.value })} />
+            {!showInvoiceForm && !invoiceResult && (
+              <div className="p-5 space-y-3">
+                <p className="text-sm text-cocoa-500">¿Cómo deseas facturar esta venta?</p>
+
+                {/* Opción 1: Consumidor final */}
+                <button
+                  onClick={() => setShowInvoiceModal(false)}
+                  className="w-full flex items-center gap-4 rounded-2xl border-2 border-milk-200 bg-white p-4 text-left transition-all duration-150 hover:border-cocoa-300 hover:shadow-md hover:-translate-y-0.5"
+                >
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-milk-100 text-cocoa-500">
+                    <Receipt size={22} />
+                  </span>
+                  <span className="flex-1">
+                    <span className="block text-sm font-semibold text-cocoa-900">Consumidor final</span>
+                    <span className="block text-xs text-cocoa-400 mt-0.5">Cierra la venta sin factura electrónica</span>
+                  </span>
+                  <ChevronRight size={16} className="text-cocoa-300" />
+                </button>
+
+                {/* Opción 2: Factura electrónica */}
+                <button
+                  onClick={() => setShowInvoiceForm(true)}
+                  className="w-full flex items-center gap-4 rounded-2xl border-2 border-cocoa-200 bg-cocoa-50/40 p-4 text-left transition-all duration-150 hover:border-cocoa-500 hover:shadow-md hover:-translate-y-0.5"
+                >
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cocoa-500 to-cocoa-700 text-milk-50">
+                    <FileText size={22} />
+                  </span>
+                  <span className="flex-1">
+                    <span className="block text-sm font-semibold text-cocoa-900">Factura electrónica (SRI)</span>
+                    <span className="block text-xs text-cocoa-500 mt-0.5">Llena los datos del cliente y emite contra el SRI</span>
+                  </span>
+                  <ChevronRight size={16} className="text-cocoa-400" />
+                </button>
               </div>
-              <div>
-                <label className="label">Cédula / RUC *</label>
-                <input className="input" placeholder="Ej: 1234567890" value={invoiceData.invoiceDocId}
-                  onChange={e => setInvoiceData({ ...invoiceData, invoiceDocId: e.target.value })} />
-              </div>
-              <div>
-                <label className="label">Correo electrónico</label>
-                <input type="email" className="input" placeholder="ejemplo@correo.com" value={invoiceData.invoiceEmail}
-                  onChange={e => setInvoiceData({ ...invoiceData, invoiceEmail: e.target.value })} />
-              </div>
-              <div>
-                <label className="label">Teléfono</label>
-                <input className="input" placeholder="0999999999" value={invoiceData.invoicePhone}
-                  onChange={e => setInvoiceData({ ...invoiceData, invoicePhone: e.target.value })} />
-              </div>
-              <div>
-                <label className="label">Dirección</label>
-                <input className="input" placeholder="Latacunga" value={invoiceData.invoiceAddress}
-                  onChange={e => setInvoiceData({ ...invoiceData, invoiceAddress: e.target.value })} />
-              </div>
-            </div>
-            {invoiceResult && (
-              <div className="px-5 pb-2">
-                {invoiceResult.estado === 'AUTORIZADO' ? (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 space-y-1.5">
-                    <p className="text-sm font-semibold text-emerald-700 flex items-center gap-1.5">
-                      <CheckCircle size={15} /> Factura AUTORIZADA
-                    </p>
-                    <div className="text-xs text-emerald-700 space-y-0.5">
-                      <p className="break-all"><span className="font-medium">Clave:</span> {invoiceResult.claveAcceso}</p>
-                      <p className="break-all"><span className="font-medium">Autorización:</span> {invoiceResult.numeroAutorizacion}</p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        const updated = { ...invoiceOrderRef, ...invoiceData, numeroAutorizacion: invoiceResult.numeroAutorizacion, claveAcceso: invoiceResult.claveAcceso };
-                        printReceipt(updated);
-                        setShowInvoiceModal(false);
-                      }}
-                      className="btn-primary w-full text-sm py-2"
-                    >
-                      Imprimir factura
-                    </button>
+            )}
+
+            {showInvoiceForm && (
+              <>
+                <div className="p-5 space-y-4">
+                  <button
+                    onClick={() => { setShowInvoiceForm(false); setInvoiceResult(null); }}
+                    className="inline-flex items-center gap-1.5 text-xs text-cocoa-400 hover:text-cocoa-600 transition-colors"
+                  >
+                    <ChevronLeft size={14} /> Volver
+                  </button>
+                  <p className="text-sm text-cocoa-500">Ingresa los datos del cliente para emitir la factura.</p>
+
+                  <div>
+                    <label className="label">Nombre completo *</label>
+                    <input className="input" placeholder="Ej: Juan Pérez" value={invoiceData.invoiceName}
+                      onChange={e => setInvoiceData({ ...invoiceData, invoiceName: e.target.value })} />
                   </div>
-                ) : (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-3.5">
-                    <p className="text-sm font-semibold text-red-700 flex items-center gap-1.5">
-                      <XCircle size={15} /> SRI: {invoiceResult.estado || 'ERROR'}
-                    </p>
-                    <div className="mt-1.5 space-y-1 max-h-28 overflow-y-auto">
-                      {(invoiceResult.mensajes || []).map((m, i) => (
-                        <p key={i} className="text-xs text-red-600">
-                          <span className="font-medium">{m.identificador}:</span> {m.mensaje}
+                  <div>
+                    <label className="label">Cédula / RUC *</label>
+                    <input className="input" placeholder="Ej: 1234567890" value={invoiceData.invoiceDocId}
+                      onChange={e => setInvoiceData({ ...invoiceData, invoiceDocId: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="label">Correo electrónico</label>
+                    <input type="email" className="input" placeholder="ejemplo@correo.com" value={invoiceData.invoiceEmail}
+                      onChange={e => setInvoiceData({ ...invoiceData, invoiceEmail: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="label">Teléfono</label>
+                    <input className="input" placeholder="0999999999" value={invoiceData.invoicePhone}
+                      onChange={e => setInvoiceData({ ...invoiceData, invoicePhone: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="label">Dirección</label>
+                    <input className="input" placeholder="Latacunga" value={invoiceData.invoiceAddress}
+                      onChange={e => setInvoiceData({ ...invoiceData, invoiceAddress: e.target.value })} />
+                  </div>
+                </div>
+                {invoiceResult && (
+                  <div className="px-5 pb-2">
+                    {invoiceResult.estado === 'AUTORIZADO' ? (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 space-y-1.5">
+                        <p className="text-sm font-semibold text-emerald-700 flex items-center gap-1.5">
+                          <CheckCircle size={15} /> Factura AUTORIZADA
                         </p>
-                      ))}
-                    </div>
-                    {invoiceResult.claveAcceso && (
-                      <p className="mt-1.5 text-[10px] text-red-500 break-all">Clave: {invoiceResult.claveAcceso}</p>
+                        <div className="text-xs text-emerald-700 space-y-0.5">
+                          <p className="break-all"><span className="font-medium">Clave:</span> {invoiceResult.claveAcceso}</p>
+                          <p className="break-all"><span className="font-medium">Autorización:</span> {invoiceResult.numeroAutorizacion}</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const updated = { ...invoiceOrderRef, ...invoiceData, numeroAutorizacion: invoiceResult.numeroAutorizacion, claveAcceso: invoiceResult.claveAcceso };
+                            printReceipt(updated);
+                            setShowInvoiceModal(false);
+                          }}
+                          className="btn-primary w-full text-sm py-2"
+                        >
+                          Imprimir factura
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-red-200 bg-red-50 p-3.5">
+                        <p className="text-sm font-semibold text-red-700 flex items-center gap-1.5">
+                          <XCircle size={15} /> SRI: {invoiceResult.estado || 'ERROR'}
+                        </p>
+                        <div className="mt-1.5 space-y-1 max-h-28 overflow-y-auto">
+                          {(invoiceResult.mensajes || []).map((m, i) => (
+                            <p key={i} className="text-xs text-red-600">
+                              <span className="font-medium">{m.identificador}:</span> {m.mensaje}
+                            </p>
+                          ))}
+                        </div>
+                        {invoiceResult.claveAcceso && (
+                          <p className="mt-1.5 text-[10px] text-red-500 break-all">Clave: {invoiceResult.claveAcceso}</p>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
-              </div>
-            )}
-            <div className="flex gap-3 border-t border-milk-200/70 px-6 py-4">
-              <button onClick={() => setShowInvoiceModal(false)} className="btn-secondary flex-1">
-                Sin factura
-              </button>
-              <button onClick={async () => {
-                if (!invoiceData.invoiceName.trim() || !invoiceData.invoiceDocId.trim()) {
-                  toast.error('Nombre y cédula son requeridos');
-                  return;
-                }
-                if (!invoiceOrderRef) return;
-                try {
-                  const res = await api.patch<any>(`/orders/${invoiceOrderRef.id}/invoice`, invoiceData);
-                  if (res.success) {
-                    toast.success('Datos de factura guardados');
-                    // Emitir factura electrónica contra el SRI
-                    setEmittingInvoice(true);
-                    setInvoiceResult(null);
+                <div className="flex gap-3 border-t border-milk-200/70 px-6 py-4">
+                  <button onClick={() => setShowInvoiceModal(false)} className="btn-secondary flex-1">
+                    Cancelar
+                  </button>
+                  <button onClick={async () => {
+                    if (!invoiceData.invoiceName.trim() || !invoiceData.invoiceDocId.trim()) {
+                      toast.error('Nombre y cédula son requeridos');
+                      return;
+                    }
+                    if (!invoiceOrderRef) return;
                     try {
-                      const emitRes = await api.post<any>(`/orders/${invoiceOrderRef.id}/emit-invoice`);
-                      if (emitRes.success && emitRes.data) {
-                        setInvoiceResult({
-                          claveAcceso: emitRes.data.claveAcceso,
-                          numeroAutorizacion: emitRes.data.numeroAutorizacion,
-                          estado: emitRes.data.estado,
-                          mensajes: emitRes.data.mensajes || [],
-                        });
-                        if (emitRes.data.estado === 'AUTORIZADO') {
-                          toast.success('Factura electrónica AUTORIZADA por el SRI');
-                        } else {
-                          toast.error(`SRI: ${emitRes.data.estado}`);
+                      const res = await api.patch<any>(`/orders/${invoiceOrderRef.id}/invoice`, invoiceData);
+                      if (res.success) {
+                        toast.success('Datos de factura guardados');
+                        setEmittingInvoice(true);
+                        setInvoiceResult(null);
+                        try {
+                          const emitRes = await api.post<any>(`/orders/${invoiceOrderRef.id}/emit-invoice`);
+                          if (emitRes.success && emitRes.data) {
+                            setInvoiceResult({
+                              claveAcceso: emitRes.data.claveAcceso,
+                              numeroAutorizacion: emitRes.data.numeroAutorizacion,
+                              estado: emitRes.data.estado,
+                              mensajes: emitRes.data.mensajes || [],
+                            });
+                            if (emitRes.data.estado === 'AUTORIZADO') {
+                              toast.success('Factura electrónica AUTORIZADA por el SRI');
+                            } else {
+                              toast.error(`SRI: ${emitRes.data.estado}`);
+                            }
+                          }
+                        } catch (emitErr: any) {
+                          setInvoiceResult({
+                            estado: 'ERROR',
+                            mensajes: [{ identificador: 'EMIT', mensaje: emitErr?.response?.data?.error || emitErr?.message || 'Error al emitir' }],
+                          });
+                          toast.error(emitErr?.response?.data?.error || 'Error al emitir factura con el SRI');
+                        } finally {
+                          setEmittingInvoice(false);
                         }
                       }
-                    } catch (emitErr: any) {
-                      setInvoiceResult({
-                        estado: 'ERROR',
-                        mensajes: [{ identificador: 'EMIT', mensaje: emitErr?.response?.data?.error || emitErr?.message || 'Error al emitir' }],
-                      });
-                      toast.error(emitErr?.response?.data?.error || 'Error al emitir factura con el SRI');
-                    } finally {
-                      setEmittingInvoice(false);
+                    } catch (err: any) {
+                      toast.error(err?.response?.data?.error || err?.message || 'Error al guardar factura');
                     }
-                  }
-                } catch (err: any) {
-                  toast.error(err?.response?.data?.error || err?.message || 'Error al guardar factura');
-                }
-              }} className="btn-primary flex-1" disabled={emittingInvoice}>
-                {emittingInvoice ? (
-                  <><Loader2 size={16} className="animate-spin" /> Emitiendo contra el SRI...</>
-                ) : (
-                  'Emitir factura'
-                )}
-              </button>
-            </div>
+                  }} className="btn-primary flex-1" disabled={emittingInvoice}>
+                    {emittingInvoice ? (
+                      <><Loader2 size={16} className="animate-spin" /> Emitiendo contra el SRI...</>
+                    ) : (
+                      'Emitir factura'
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
