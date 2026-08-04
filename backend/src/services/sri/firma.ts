@@ -71,30 +71,33 @@ export function firmarXML(xml: string, p12Base64: string, password: string): str
   const buffer = Buffer.from(p12Base64, 'base64');
   const { privateKey, cert } = extractKeyAndCert(buffer, password);
 
-  // La llave privada y el certificado en formato PEM para xml-crypto
+  // La llave privada en formato PEM para xml-crypto
   const pem = forge.pki.privateKeyToPem(privateKey);
-  const certPem = forge.pki.certificateToPem(cert);
 
   const sig = new SignedXml();
-  sig.privateKey = pem;
-  sig.publicCert = certPem;
+  sig.signingKey = pem;
   sig.signatureAlgorithm = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1';
-  sig.canonicalizationAlgorithm = 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315';
 
   // Transformaciones: enveloped-signature + C14N (estándar SRI)
-  sig.addReference({
-    xpath: "//*[local-name(.)='factura']",
-    transforms: [
-      'http://www.w3.org/2000/09/xmldsig#enveloped-signature',
-      'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
-    ],
-    digestAlgorithm: 'http://www.w3.org/2000/09/xmldsig#sha1',
-    uri: '',
-    isEmptyUri: true,
-  });
+  sig.addReference(
+    "//*[local-name(.)='factura']",
+    ['http://www.w3.org/2000/09/xmldsig#enveloped-signature', 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315'],
+    'http://www.w3.org/2000/09/xmldsig#sha1'
+  );
+
+  // KeyInfo con el certificado X509 (requerido por el SRI)
+  const x509 = forge.pki.certificateToPem(cert)
+    .replace(/-----BEGIN CERTIFICATE-----/, '')
+    .replace(/-----END CERTIFICATE-----/, '')
+    .replace(/\n/g, '');
+  sig.keyInfoProvider = {
+    getKeyInfo: () => `<ds:X509Data><ds:X509Certificate>${x509}</ds:X509Certificate></ds:X509Data>`,
+    getKey: () => pem,
+  } as any;
 
   sig.computeSignature(xml, {
     prefix: 'ds',
+    attrs: { Id: 'Signature1' },
     location: { reference: "//*[local-name(.)='factura']", action: 'append' },
   });
 

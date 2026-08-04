@@ -25,7 +25,7 @@
     "jsonwebtoken": "^9.0.2",
     "node-forge": "^1.4.0",
     "uuid": "^10.0.0",
-    "xml-crypto": "^6.1.2",
+    "xml-crypto": "^2.1.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {
