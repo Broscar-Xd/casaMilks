@@ -1,10 +1,12 @@
 import forge from 'node-forge';
+import { SignedXml } from 'xml-crypto';
 
 /**
  * Módulo de firma electrónica XMLDSig (estándar SRI).
  * - Parsea certificado .p12 (PKCS#12) con su clave.
  * - Firma el XML de comprobante con firma enveloped.
- * - Algoritmo: RSA-SHA1 + canonicalización C14N (compatible SRI).
+ * - Algoritmo: RSA-SHA1 + canonicalización C14N real (xml-crypto),
+ *   el mismo comportamiento que exige el SRI.
  */
 
 export interface CertInfo {
@@ -58,65 +60,37 @@ export function getCertInfo(p12Base64: string, password: string): CertInfo {
   };
 }
 
-/**
- * Canonicalización C14N básica: elimina espacios en blanco entre etiquetas
- * y comentarios. Suficiente para el XML generado por nuestro módulo.
- */
-function canonicalize(xml: string): string {
-  return xml
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/>\s+</g, '><')
-    .trim();
-}
-
 /** Firma el XML del comprobante (firma enveloped, estándar SRI) */
 export function firmarXML(xml: string, p12Base64: string, password: string): string {
   const buffer = Buffer.from(p12Base64, 'base64');
   const { privateKey, cert } = extractKeyAndCert(buffer, password);
 
-  // 1. Digest del documento (canonicalizado, sin la firma)
-  const canonDoc = canonicalize(xml);
-  const sha1Doc = forge.md.sha1.create();
-  sha1Doc.update(canonDoc, 'utf8');
-  const digestValue = forge.util.encode64(sha1Doc.digest().getBytes());
+  // La llave privada y el certificado en formato PEM para xml-crypto
+  const pem = forge.pki.privateKeyToPem(privateKey);
+  const certPem = forge.pki.certificateToPem(cert);
 
-  // 2. SignedInfo
-  const x509 = forge.pki.certificateToPem(cert)
-    .replace(/-----BEGIN CERTIFICATE-----/, '')
-    .replace(/-----END CERTIFICATE-----/, '')
-    .replace(/\n/g, '');
+  const sig = new SignedXml();
+  sig.privateKey = pem;
+  sig.publicCert = certPem;
+  sig.signatureAlgorithm = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1';
+  sig.canonicalizationAlgorithm = 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315';
 
-  const signedInfo = `<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
-<ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
-<ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/>
-<ds:Reference URI="">
-<ds:Transforms>
-<ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
-<ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
-</ds:Transforms>
-<ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
-<ds:DigestValue>${digestValue}</ds:DigestValue>
-</ds:Reference>
-</ds:SignedInfo>`;
+  // Transformaciones: enveloped-signature + C14N (estándar SRI)
+  sig.addReference({
+    xpath: "//*[local-name(.)='factura']",
+    transforms: [
+      'http://www.w3.org/2000/09/xmldsig#enveloped-signature',
+      'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
+    ],
+    digestAlgorithm: 'http://www.w3.org/2000/09/xmldsig#sha1',
+    uri: '',
+    isEmptyUri: true,
+  });
 
-  // 3. Firmar el SignedInfo (canonicalizado)
-  const canonSignedInfo = canonicalize(signedInfo);
-  const md = forge.md.sha1.create();
-  md.update(canonSignedInfo, 'utf8');
-  const signatureBytes = privateKey.sign(md);
-  const signatureValue = forge.util.encode64(signatureBytes);
+  sig.computeSignature(xml, {
+    prefix: 'ds',
+    location: { reference: "//*[local-name(.)='factura']", action: 'append' },
+  });
 
-  // 4. Ensamblar bloque de firma
-  const signatureBlock = `<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="Signature1">
-${signedInfo}
-<ds:SignatureValue>${signatureValue}</ds:SignatureValue>
-<ds:KeyInfo>
-<ds:X509Data>
-<ds:X509Certificate>${x509}</ds:X509Certificate>
-</ds:X509Data>
-</ds:KeyInfo>
-</ds:Signature>`;
-
-  // 5. Insertar antes del cierre del elemento raíz
-  return xml.replace(/<\/factura>/, `${signatureBlock}\n</factura>`);
+  return sig.getSignedXml();
 }

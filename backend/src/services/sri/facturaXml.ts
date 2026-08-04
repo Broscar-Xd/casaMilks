@@ -73,6 +73,16 @@ function escapeXml(str: string): string {
     .replace(/'/g, '&apos;');
 }
 
+/**
+ * Genera un código corto válido para codigoPrincipal/codigoAuxiliar.
+ * El XSD del SRI (factura 1.1.0) exige: [0-9A-Za-zÑñ ]{1,25}
+ * (máx 25 caracteres, sin guiones). Los UUID de productos no cumplen,
+ * así que se convierten a hex sin guiones y se truncan a 25.
+ */
+function codigoCorto(id: string): string {
+  return id.replace(/[^0-9A-Za-zÑñ ]/g, '').slice(0, 25);
+}
+
 export function generarFacturaXML(p: FacturaParams): string {
   const fecha = `${String(p.fechaEmision.getDate()).padStart(2, '0')}/${String(p.fechaEmision.getMonth() + 1).padStart(2, '0')}/${p.fechaEmision.getFullYear()}`;
 
@@ -109,8 +119,8 @@ export function generarFacturaXML(p: FacturaParams): string {
       const valorIVA = (subtotal * item.taxRate) / 100;
       return `
       <detalle>
-        <codigoPrincipal>${escapeXml(item.codigoPrincipal)}</codigoPrincipal>
-        <codigoAuxiliar>${escapeXml(item.codigoPrincipal)}</codigoAuxiliar>
+        <codigoPrincipal>${codigoCorto(item.codigoPrincipal)}</codigoPrincipal>
+        <codigoAuxiliar>${codigoCorto(item.codigoPrincipal)}</codigoAuxiliar>
         <descripcion>${escapeXml(item.descripcion)}</descripcion>
         <cantidad>${item.cantidad}</cantidad>
         <precioUnitario>${fmt(item.precioUnitario)}</precioUnitario>
