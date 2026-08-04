@@ -1,7 +1,9 @@
 /**
- * Generación de clave de acceso SRI (48 dígitos).
+ * Generación de clave de acceso SRI (49 dígitos — formato vigente).
  * Formato: fechaEmision(8) + tipoComprobante(2) + ruc(13) + ambiente(1)
- *          + serie(6) + secuencial(9) + codigoNumerico(8) + digitoVerificador(1)
+ *          + serie(6) + secuencial(9) + codigoNumerico(9) + digitoVerificador(1)
+ * NOTA: el SRI actualizó el esquema (factura 1.1.0 vigente) y la clave pasó
+ * de 48 a 49 dígitos: el código numérico ahora tiene 9 dígitos (antes 8).
  */
 
 export function generarClaveAcceso(params: {
@@ -22,17 +24,17 @@ export function generarClaveAcceso(params: {
 
   const serie = establecimiento + puntoEmision; // 6 dígitos
   const sec = String(secuencial).padStart(9, '0');
-  const codigoNumerico = String(Math.floor(Math.random() * 90000000) + 10000000); // 8 dígitos
+  const codigoNumerico = String(Math.floor(Math.random() * 900000000) + 100000000); // 9 dígitos
 
-  const base = fecha + tipoComprobante + ruc + ambiente + serie + sec + codigoNumerico;
+  const base = fecha + tipoComprobante + ruc + ambiente + serie + sec + codigoNumerico; // 48 dígitos
   const digito = calcularDigitoVerificador(base);
 
-  return base + digito;
+  return base + digito; // 49 dígitos
 }
 
 /**
  * Dígito verificador módulo 11 (método SRI).
- * Se multiplican los 47 primeros dígitos por factores que
+ * Se multiplican los 48 primeros dígitos por factores que
  * descienden de 2 a 7 ciclando, se suma, se divide para 11
  * y se resta de 11 el residuo.
  */
