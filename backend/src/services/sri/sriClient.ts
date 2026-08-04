@@ -49,7 +49,17 @@ async function soapRequest(url: string, action: string, body: string): Promise<a
 
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`SRI HTTP ${res.status}: ${text.slice(0, 300)}`);
+    // Extraer el faultstring del SOAP Fault para un mensaje legible
+    let msg = `SRI HTTP ${res.status}`;
+    try {
+      const fault = parser.parse(text);
+      const faultstring = fault?.['Envelope']?.['Body']?.['Fault']?.faultstring;
+      if (faultstring) msg += `: ${faultstring}`;
+      else msg += `: ${text.slice(0, 300)}`;
+    } catch {
+      msg += `: ${text.slice(0, 300)}`;
+    }
+    throw new Error(msg);
   }
   return parser.parse(text);
 }
@@ -65,9 +75,11 @@ export async function enviarRecepcion(ambiente: string, xmlFirmado: string): Pro
   if (!url) throw new Error(`Ambiente SRI inválido: ${ambiente}`);
 
   const xmlBase64 = Buffer.from(xmlFirmado, 'utf8').toString('base64');
+  // IMPORTANTE: el WSDL del SRI define el elemento interno <xml> SIN namespace ({}xml),
+  // por lo que NO debe llevar prefijo (enviar <rece:xml> provoca Unmarshalling Error).
   const body = `
     <rece:validarComprobante xmlns:rece="http://ec.gob.sri.ws.recepcion">
-      <rece:xml>${xmlBase64}</rece:xml>
+      <xml>${xmlBase64}</xml>
     </rece:validarComprobante>`;
 
   const parsed = await soapRequest(url, 'validarComprobante', body);
@@ -109,9 +121,11 @@ export async function consultarAutorizacion(ambiente: string, claveAcceso: strin
   const url = SRI_URLS[ambiente]?.autorizacion;
   if (!url) throw new Error(`Ambiente SRI inválido: ${ambiente}`);
 
+  // IMPORTANTE: igual que en recepción, el elemento interno <claveAccesoConsultada>
+  // debe ir SIN namespace según el WSDL del SRI.
   const body = `
     <aut:autorizacionComprobante xmlns:aut="http://ec.gob.sri.ws.autorizacion">
-      <aut:claveAccesoConsultada>${claveAcceso}</aut:claveAccesoConsultada>
+      <claveAccesoConsultada>${claveAcceso}</claveAccesoConsultada>
     </aut:autorizacionComprobante>`;
 
   const parsed = await soapRequest(url, 'autorizacionComprobante', body);
