@@ -4,7 +4,7 @@ import { api } from '@/services/api';
 import { formatCurrency, getPaymentMethodLabel } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import { Loader2, Plus, Minus, Trash2, Receipt, ChefHat, ShoppingCart, X, Search, Banknote, CreditCard, Smartphone, Package, Layers, CheckCircle, XCircle, FileText, ChevronRight, ChevronLeft } from 'lucide-react';
-import type { TableItem, Product, Category, Order, OrderItem, ApiResponse, PaymentMethod, KitchenSend, ComboLine } from '@/types';
+import type { TableItem, Product, Category, Order, OrderItem, ApiResponse, PaymentMethod, KitchenSend, ComboLine, Customer } from '@/types';
 
 export default function POSPage() {
   const { currentBranch } = useBranch();
@@ -55,7 +55,7 @@ export default function POSPage() {
   const [showInvoiceForm, setShowInvoiceForm] = useState(false);
   const [invoiceOrderRef, setInvoiceOrderRef] = useState<any>(null);
   const [emittingInvoice, setEmittingInvoice] = useState(false);
-  const [invoiceResult, setInvoiceResult] = useState<{ claveAcceso?: string; numeroAutorizacion?: string; estado?: string; mensajes?: Array<{ identificador: string; mensaje: string }> } | null>(null);
+  const [invoiceResult, setInvoiceResult] = useState<{ claveAcceso?: string; numeroAutorizacion?: string; estado?: string; mensajes?: Array<{ identificador: string; mensaje: string; informacionAdicional?: string }> } | null>(null);
   const [invoiceData, setInvoiceData] = useState({
     invoiceName: '',
     invoiceDocId: '',
@@ -63,6 +63,76 @@ export default function POSPage() {
     invoicePhone: '',
     invoiceAddress: 'Latacunga',
   });
+  // Sugerencias de clientes guardados (autocompletar facturas)
+  const [customerSuggestions, setCustomerSuggestions] = useState<Customer[]>([]);
+
+  /** Detección del tipo de documento: Cédula (10), RUC (13), otro */
+  const getDocType = (doc: string) => {
+    const clean = doc.replace(/\D/g, '');
+    if (clean.length === 10) return 'Cédula';
+    if (clean.length === 13) return 'RUC';
+    return clean.length > 0 ? 'Pasaporte / Otro' : '';
+  };
+
+  /** Busca clientes guardados al escribir el documento y autocompleta si hay match exacto */
+  const handleDocIdChange = async (docId: string) => {
+    const clean = docId.replace(/\D/g, '').slice(0, 13);
+    setInvoiceData((d) => ({ ...d, invoiceDocId: clean }));
+    if (!currentBranch || clean.length < 6) {
+      setCustomerSuggestions([]);
+      return;
+    }
+    try {
+      const res = await api.get<ApiResponse<Customer[]>>(`/customers?branchId=${currentBranch.id}&search=${clean}`);
+      if (res.success && res.data) {
+        setCustomerSuggestions(res.data);
+        const exact = res.data.find((c) => c.docId === clean);
+        if (exact) {
+          setInvoiceData((d) => ({
+            ...d,
+            invoiceDocId: clean,
+            invoiceName: exact.name,
+            invoiceEmail: exact.email || '',
+            invoicePhone: exact.phone || '',
+            invoiceAddress: exact.address || 'Latacunga',
+          }));
+          setCustomerSuggestions([]);
+        }
+      }
+    } catch {
+      /* silencioso */
+    }
+  };
+
+  /** Aplica un cliente sugerido al formulario */
+  const applyCustomer = (c: Customer) => {
+    setInvoiceData((d) => ({
+      ...d,
+      invoiceDocId: c.docId,
+      invoiceName: c.name,
+      invoiceEmail: c.email || '',
+      invoicePhone: c.phone || '',
+      invoiceAddress: c.address || 'Latacunga',
+    }));
+    setCustomerSuggestions([]);
+  };
+
+  /** Guarda el cliente para futuras facturas (upsert por docId) */
+  const saveCustomer = async () => {
+    if (!currentBranch || !invoiceData.invoiceDocId.trim() || !invoiceData.invoiceName.trim()) return;
+    try {
+      await api.post('/customers', {
+        branchId: currentBranch.id,
+        docId: invoiceData.invoiceDocId.trim(),
+        name: invoiceData.invoiceName.trim(),
+        email: invoiceData.invoiceEmail.trim(),
+        phone: invoiceData.invoicePhone.trim(),
+        address: invoiceData.invoiceAddress.trim(),
+      });
+    } catch {
+      /* silencioso: guardar cliente es opcional */
+    }
+  };
 
   // Takeout orders
   const [takeoutOrders, setTakeoutOrders] = useState<Order[]>([]);
@@ -921,8 +991,38 @@ export default function POSPage() {
                   </div>
                   <div>
                     <label className="label">Cédula / RUC *</label>
-                    <input className="input" placeholder="Ej: 1234567890" value={invoiceData.invoiceDocId}
-                      onChange={e => setInvoiceData({ ...invoiceData, invoiceDocId: e.target.value })} />
+                    <div className="relative">
+                      <input
+                        className="input pr-20"
+                        inputMode="numeric"
+                        placeholder="Ej: 1712345678 (cédula) o 1790000000001 (RUC)"
+                        value={invoiceData.invoiceDocId}
+                        onChange={(e) => handleDocIdChange(e.target.value)}
+                      />
+                      {getDocType(invoiceData.invoiceDocId) && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-cocoa-900/5 border border-cocoa-900/10 px-2 py-0.5 text-[10px] font-semibold text-cocoa-500">
+                          {getDocType(invoiceData.invoiceDocId)}
+                        </span>
+                      )}
+                      {customerSuggestions.length > 0 && (
+                        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-milk-200 bg-white shadow-lg">
+                          {customerSuggestions.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => applyCustomer(c)}
+                              className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs hover:bg-milk-100 transition-colors"
+                            >
+                              <span className="font-medium text-cocoa-800">{c.name}</span>
+                              <span className="text-cocoa-400">{c.docId}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[10px] text-cocoa-400">
+                      {getDocType(invoiceData.invoiceDocId) === 'Cédula' ? '10 dígitos' : getDocType(invoiceData.invoiceDocId) === 'RUC' ? '13 dígitos' : 'Se autocompleta con clientes ya guardados'}
+                    </p>
                   </div>
                   <div>
                     <label className="label">Correo electrónico</label>
@@ -971,6 +1071,9 @@ export default function POSPage() {
                           {(invoiceResult.mensajes || []).map((m, i) => (
                             <p key={i} className="text-xs text-red-600">
                               <span className="font-medium">{m.identificador}:</span> {m.mensaje}
+                              {m.informacionAdicional && (
+                                <span className="block mt-0.5 text-[11px] text-red-500/90 font-medium">{m.informacionAdicional}</span>
+                              )}
                             </p>
                           ))}
                         </div>
@@ -995,6 +1098,8 @@ export default function POSPage() {
                       const res = await api.patch<any>(`/orders/${invoiceOrderRef.id}/invoice`, invoiceData);
                       if (res.success) {
                         toast.success('Datos de factura guardados');
+                        // Guardar cliente para futuras facturas (opcional, no bloquea)
+                        await saveCustomer();
                         setEmittingInvoice(true);
                         setInvoiceResult(null);
                         try {

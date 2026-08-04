@@ -51,12 +51,18 @@ export function getCertInfo(p12Base64: string, password: string): CertInfo {
   const cn = cert.subject.getField('CN')?.value as string | undefined;
   const serial = cert.serialNumber;
 
+  // RUC del certificado: 13 dígitos en CN, o cédula (10 dígitos) + "001" desde el serial
+  const cnRuc = cn?.match(/\d{13}/)?.[0];
+  const serialDigits = serial?.replace(/\D/g, '');
+  const cedulaEnSerial = serialDigits?.match(/\d{10}/)?.[0];
+  const ruc = cnRuc || (cedulaEnSerial ? cedulaEnSerial + '001' : undefined);
+
   return {
     subject: cn || subjectParts.join(', ') || 'Certificado',
     serial,
     notBefore: cert.validity.notBefore,
     notAfter: cert.validity.notAfter,
-    ruc: cn?.match(/\d{13}/)?.[0] || undefined,
+    ruc,
   };
 }
 

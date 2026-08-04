@@ -145,10 +145,23 @@ export interface DigitalSignature {
   label: string;
   certSubject: string;
   certSerial: string;
+  certRuc?: string | null;
   validFrom: string | null;
   validTo: string | null;
   active: boolean;
   createdAt?: string;
+}
+
+export interface Customer {
+  id: string;
+  branchId: string;
+  docId: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Ingredient {

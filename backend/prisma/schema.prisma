@@ -30,6 +30,7 @@ model Branch {
   dailyCloses         DailyClose[]
   electronicReceipts  ElectronicReceipt[]
   supplierPayments    SupplierPayment[]
+  customers           Customer[]
 
   @@map("branches")
 }
@@ -67,6 +68,7 @@ model DigitalSignature {
   password   String
   certSubject String  @map("cert_subject")
   certSerial String   @map("cert_serial")
+  certRuc    String?  @map("cert_ruc")
   validFrom  DateTime? @map("valid_from")
   validTo    DateTime? @map("valid_to")
   active     Boolean  @default(true)
@@ -76,6 +78,25 @@ model DigitalSignature {
   branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   @@map("digital_signatures")
+}
+
+/// Clientes del local (para autocompletar facturas electrónicas).
+model Customer {
+  id        String   @id @default(uuid())
+  branchId  String   @map("branch_id")
+  docId     String   @map("doc_id")
+  name      String
+  email     String?
+  phone     String?
+  address   String?  @default("Latacunga")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, docId])
+  @@index([branchId])
+  @@map("customers")
 }
 
 /// Secuenciales de comprobantes por año fiscal y local.

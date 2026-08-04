@@ -45,6 +45,13 @@ export async function emitirFacturaElectronica(orderId: string): Promise<EmitInv
   const signature = await prisma.digitalSignature.findUnique({ where: { branchId: order.branchId } });
   if (!signature) throw new AppError('No hay firma electrónica configurada para este local');
 
+  // El RUC del comprobante DEBE coincidir con el RUC del certificado de firma
+  if (signature.certRuc && signature.certRuc !== fiscal.ruc) {
+    throw new AppError(
+      `El RUC configurado (${fiscal.ruc}) no coincide con el RUC del certificado de firma (${signature.certRuc}). Actualiza la configuración fiscal del local o sube el certificado correcto.`
+    );
+  }
+
   // Secuencial
   const seq = await prisma.receiptSequence.upsert({
     where: { branchId_year_type: { branchId: order.branchId, year: new Date().getFullYear(), type: 'FACTURA' } },
@@ -129,7 +136,9 @@ export async function emitirFacturaElectronica(orderId: string): Promise<EmitInv
   try {
     const recepcion = await enviarRecepcion(AMBIENTE, xmlFirmado);
     if (recepcion.estado !== 'RECIBIDA') {
-      const msgs = recepcion.mensajes.map((m) => `${m.identificador}: ${m.mensaje}`).join(' | ');
+      const msgs = recepcion.mensajes
+        .map((m) => `${m.identificador}: ${m.mensaje}${m.informacionAdicional ? ' - ' + m.informacionAdicional : ''}`)
+        .join(' | ');
       await prisma.electronicReceipt.update({
         where: { id: receipt.id },
         data: { status: 'REJECTED', errorMessage: msgs || 'Comprobante devuelto por el SRI' },
@@ -195,6 +204,7 @@ export async function getSignatureInfo(branchId: string) {
     label: signature.label,
     certSubject: signature.certSubject,
     certSerial: signature.certSerial,
+    certRuc: signature.certRuc,
     validFrom: signature.validFrom,
     validTo: signature.validTo,
     active: signature.active,
@@ -219,6 +229,7 @@ export async function saveSignature(branchId: string, p12Base64: string, passwor
     label: label || 'Firma Electrónica',
     certSubject: info.subject,
     certSerial: info.serial,
+    certRuc: info.ruc,
     validFrom: info.notBefore,
     validTo: info.notAfter,
     active: true,

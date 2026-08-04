@@ -129,6 +129,14 @@ export default function SignaturesPage() {
                 {signature.validTo ? new Date(signature.validTo).toLocaleDateString('es-EC') : '—'}
               </p>
             </div>
+            {signature.certRuc && (
+              <div className="sm:col-span-2 rounded-xl bg-milk-100 border border-milk-200/70 px-3 py-2.5">
+                <p className="text-xs text-cocoa-400 mb-0.5">
+                  RUC del certificado — debe coincidir con el RUC de la configuración fiscal del local
+                </p>
+                <p className="font-semibold text-cocoa-900 font-mono">{signature.certRuc}</p>
+              </div>
+            )}
           </div>
         </div>
       ) : (

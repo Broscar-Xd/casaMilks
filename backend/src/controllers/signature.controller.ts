@@ -25,6 +25,7 @@ export const signatureController = {
           label: signature.label,
           certSubject: signature.certSubject,
           certSerial: signature.certSerial,
+          certRuc: signature.certRuc,
           validFrom: signature.validFrom,
           validTo: signature.validTo,
         },
