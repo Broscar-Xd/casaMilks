@@ -14,7 +14,7 @@ export default function BranchesPage() {
   const [form, setForm] = useState({ name: '', address: '', phone: '' });
   const [fiscalForm, setFiscalForm] = useState({
     ruc: '', businessName: '', tradeName: '', receiptAuthorization: '',
-    rimpeLegend: 'Contribuyente RIMPE Negocio Popular', address: '', phone: '', email: '',
+    rimpeLegend: 'CONTRIBUYENTE RÉGIMEN RIMPE', address: '', phone: '', email: '',
     establishmentCode: '001', emissionPointCode: '001',
   });
 
@@ -58,7 +58,7 @@ export default function BranchesPage() {
     } else {
       setFiscalForm({
         ruc: '', businessName: '', tradeName: '', receiptAuthorization: '',
-        rimpeLegend: 'Contribuyente RIMPE Negocio Popular', address: branch.address, phone: branch.phone || '', email: '',
+        rimpeLegend: 'CONTRIBUYENTE RÉGIMEN RIMPE', address: branch.address, phone: branch.phone || '', email: '',
         establishmentCode: '001', emissionPointCode: '001',
       });
     }
@@ -179,7 +179,15 @@ export default function BranchesPage() {
               </div>
               <div>
                 <label className="label">Leyenda RIMPE</label>
-                <input className="input" value={fiscalForm.rimpeLegend} onChange={(e) => setFiscalForm({ ...fiscalForm, rimpeLegend: e.target.value })} />
+                <select
+                  className="input"
+                  value={fiscalForm.rimpeLegend}
+                  onChange={(e) => setFiscalForm({ ...fiscalForm, rimpeLegend: e.target.value })}
+                >
+                  <option value="CONTRIBUYENTE RÉGIMEN RIMPE">CONTRIBUYENTE RÉGIMEN RIMPE</option>
+                  <option value="CONTRIBUYENTE NEGOCIO POPULAR - RÉGIMEN RIMPE">CONTRIBUYENTE NEGOCIO POPULAR - RÉGIMEN RIMPE</option>
+                </select>
+                <p className="mt-1 text-[10px] text-cocoa-400">El SRI exige exactamente uno de estos dos textos.</p>
               </div>
               <div>
                 <label className="label">Dirección (fiscal)</label>

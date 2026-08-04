@@ -48,7 +48,7 @@ model BranchFiscalConfig {
   establishmentCode   String @default("001") @map("establishment_code")
   emissionPointCode   String @default("001") @map("emission_point_code")
   digitalSignature    String? @map("digital_signature")
-  rimpeLegend         String @default("Contribuyente RIMPE Negocio Popular") @map("rimpe_legend")
+  rimpeLegend         String @default("CONTRIBUYENTE RÉGIMEN RIMPE") @map("rimpe_legend")
   address             String
   phone               String?
   email               String?

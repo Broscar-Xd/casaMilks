@@ -83,6 +83,25 @@ function codigoCorto(id: string): string {
   return id.replace(/[^0-9A-Za-zÑñ ]/g, '').slice(0, 25);
 }
 
+/**
+ * Valores permitidos por el XSD del SRI (factura 1.1.0) para
+ * contribuyenteRimpe: el texto debe coincidir EXACTAMENTE con el patrón
+ * 'CONTRIBUYENTE RÉGIMEN RIMPE|CONTRIBUYENTE NEGOCIO POPULAR - RÉGIMEN RIMPE'.
+ */
+const RIMPE_VALIDOS = [
+  'CONTRIBUYENTE RÉGIMEN RIMPE',
+  'CONTRIBUYENTE NEGOCIO POPULAR - RÉGIMEN RIMPE',
+] as const;
+
+function normalizarRimpe(legend: string | undefined): string | undefined {
+  if (!legend) return undefined;
+  const upper = legend.trim().toUpperCase().replace(/\s+/g, ' ');
+  if (RIMPE_VALIDOS.includes(upper as (typeof RIMPE_VALIDOS)[number])) return upper;
+  // Normalizaciones amigables: si el usuario escribió algo parecido, usar el régimen general
+  if (upper.includes('NEGOCIO POPULAR')) return 'CONTRIBUYENTE NEGOCIO POPULAR - RÉGIMEN RIMPE';
+  return 'CONTRIBUYENTE RÉGIMEN RIMPE';
+}
+
 export function generarFacturaXML(p: FacturaParams): string {
   const fecha = `${String(p.fechaEmision.getDate()).padStart(2, '0')}/${String(p.fechaEmision.getMonth() + 1).padStart(2, '0')}/${p.fechaEmision.getFullYear()}`;
 
@@ -172,7 +191,7 @@ export function generarFacturaXML(p: FacturaParams): string {
     <ptoEmi>${p.puntoEmision}</ptoEmi>
     <secuencial>${String(p.secuencial).padStart(9, '0')}</secuencial>
     <dirMatriz>${escapeXml(p.dirMatriz)}</dirMatriz>
-    ${p.contribuyenteRimpe ? `<contribuyenteRimpe>${escapeXml(p.contribuyenteRimpe)}</contribuyenteRimpe>` : ''}
+    ${p.contribuyenteRimpe ? `<contribuyenteRimpe>${escapeXml(normalizarRimpe(p.contribuyenteRimpe)!)}</contribuyenteRimpe>` : ''}
   </infoTributaria>
   <infoFactura>
     <fechaEmision>${fecha}</fechaEmision>

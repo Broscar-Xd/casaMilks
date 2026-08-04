@@ -18,7 +18,9 @@ export const updateFiscalConfigSchema = z.object({
   businessName: z.string().optional(),
   tradeName: z.string().optional(),
   receiptAuthorization: z.string().optional(),
-  rimpeLegend: z.string().optional(),
+  rimpeLegend: z
+    .enum(['CONTRIBUYENTE RÉGIMEN RIMPE', 'CONTRIBUYENTE NEGOCIO POPULAR - RÉGIMEN RIMPE'])
+    .optional(),
   address: z.string().optional(),
   phone: z.string().optional().nullable(),
   email: z.string().email().optional().nullable().or(z.literal('')),
