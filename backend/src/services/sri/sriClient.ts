@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
+import https from 'https';
 
 /**
  * Cliente de Web Services del SRI (SOAP 1.2).
@@ -8,6 +9,12 @@ import { XMLParser } from 'fast-xml-parser';
  * URLs (WSDL):
  *   Ambiente 1 (pruebas):    https://celcer.sri.gob.ec/comprobantes-electronicos-ws/...
  *   Ambiente 2 (producción): https://cel.sri.gob.ec/comprobantes-electronicos-ws/...
+ *
+ * NOTA TLS: el servidor del SRI no envía la cadena completa de certificados,
+ * por lo que la verificación estricta de Node (fetch/undici) falla con
+ * "fetch failed". Se usa un agente HTTPS con rejectUnauthorized: false,
+ * el mismo comportamiento que strong-soap con strictSSL: false (patrón
+ * estándar en integraciones SRI).
  */
 
 export const SRI_URLS: Record<string, { recepcion: string; autorizacion: string }> = {
@@ -29,7 +36,10 @@ const parser = new XMLParser({
   trimValues: true,
 });
 
-async function soapRequest(url: string, action: string, body: string): Promise<any> {
+// Agente HTTPS sin verificación estricta de certificados (requerido por el SRI).
+const sriAgent = new https.Agent({ rejectUnauthorized: false });
+
+function soapRequest(url: string, action: string, body: string): Promise<any> {
   const envelope = `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
   <soapenv:Header/>
@@ -38,30 +48,47 @@ async function soapRequest(url: string, action: string, body: string): Promise<a
   </soapenv:Body>
 </soapenv:Envelope>`;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset=utf-8',
-      SOAPAction: action,
-    },
-    body: envelope,
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      url,
+      {
+        method: 'POST',
+        agent: sriAgent,
+        headers: {
+          'Content-Type': 'text/xml; charset=utf-8',
+          // El WSDL del SRI define soapAction="" (vacío); enviar otro valor
+          // produce: "The given SOAPAction ... does not match an operation"
+          SOAPAction: '""',
+          'Content-Length': Buffer.byteLength(envelope, 'utf8'),
+        },
+      },
+      (res) => {
+        let data = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          if ((res.statusCode ?? 0) >= 400) {
+            // Extraer el faultstring del SOAP Fault para un mensaje legible
+            let msg = `SRI HTTP ${res.statusCode}`;
+            try {
+              const fault = parser.parse(data);
+              const faultstring = fault?.['Envelope']?.['Body']?.['Fault']?.faultstring;
+              msg += faultstring ? `: ${faultstring}` : `: ${data.slice(0, 300)}`;
+            } catch {
+              msg += `: ${data.slice(0, 300)}`;
+            }
+            reject(new Error(msg));
+            return;
+          }
+          resolve(parser.parse(data));
+        });
+      }
+    );
+    req.on('error', (err: any) => reject(new Error(`Error de red con el SRI: ${err?.code || err?.message}`)));
+    req.setTimeout(60000, () => req.destroy(new Error('Timeout al comunicarse con el SRI')));
+    req.write(envelope);
+    req.end();
   });
-
-  const text = await res.text();
-  if (!res.ok) {
-    // Extraer el faultstring del SOAP Fault para un mensaje legible
-    let msg = `SRI HTTP ${res.status}`;
-    try {
-      const fault = parser.parse(text);
-      const faultstring = fault?.['Envelope']?.['Body']?.['Fault']?.faultstring;
-      if (faultstring) msg += `: ${faultstring}`;
-      else msg += `: ${text.slice(0, 300)}`;
-    } catch {
-      msg += `: ${text.slice(0, 300)}`;
-    }
-    throw new Error(msg);
-  }
-  return parser.parse(text);
 }
 
 export interface SriRecepcionResult {
@@ -121,11 +148,11 @@ export async function consultarAutorizacion(ambiente: string, claveAcceso: strin
   const url = SRI_URLS[ambiente]?.autorizacion;
   if (!url) throw new Error(`Ambiente SRI inválido: ${ambiente}`);
 
-  // IMPORTANTE: igual que en recepción, el elemento interno <claveAccesoConsultada>
-  // debe ir SIN namespace según el WSDL del SRI.
+  // IMPORTANTE: según el WSDL del SRI, el elemento interno debe llamarse
+  // <claveAccesoComprobante> SIN namespace ({}claveAccesoComprobante).
   const body = `
     <aut:autorizacionComprobante xmlns:aut="http://ec.gob.sri.ws.autorizacion">
-      <claveAccesoConsultada>${claveAcceso}</claveAccesoConsultada>
+      <claveAccesoComprobante>${claveAcceso}</claveAccesoComprobante>
     </aut:autorizacionComprobante>`;
 
   const parsed = await soapRequest(url, 'autorizacionComprobante', body);
