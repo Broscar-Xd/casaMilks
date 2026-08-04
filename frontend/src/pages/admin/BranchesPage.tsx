@@ -172,8 +172,10 @@ export default function BranchesPage() {
                 </div>
               </div>
               <div>
-                <label className="label">Autorización</label>
-                <input className="input" value={fiscalForm.receiptAuthorization} onChange={(e) => setFiscalForm({ ...fiscalForm, receiptAuthorization: e.target.value })} />
+                <label className="label">Autorización / Secuencial</label>
+                <div className="rounded-lg bg-milk-50 border border-milk-200/70 px-3 py-2.5 text-sm text-cocoa-500">
+                  Automático — el SRI genera la autorización y el secuencial (001-001-000000001) se incrementa solo por cada factura.
+                </div>
               </div>
               <div>
                 <label className="label">Leyenda RIMPE</label>
