@@ -193,7 +193,12 @@ export interface Order {
   payments: Payment[];
   user?: { id: string; name: string };
   table?: { id: string; name: string };
+  kitchenSends?: KitchenSend[];
 }
+
+/** True si la orden tiene envíos a cocina pendientes (PENDING). */
+export const hasKitchenPending = (order: Order | null | undefined): boolean =>
+  !!order?.kitchenSends?.some((s) => s.status === 'PENDING');
 
 export interface OrderItem {
   id: string;

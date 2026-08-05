@@ -99,11 +99,20 @@
   }
 
   .modal-overlay {
-    @apply fixed inset-0 z-50 flex items-center justify-center bg-cocoa-950/50 backdrop-blur-sm p-4;
+    @apply fixed inset-0 z-50 overflow-y-auto bg-cocoa-950/50 backdrop-blur-sm p-4;
+    /* En pantallas pequeñas el contenido debe poder scrollear en vez de cortarse */
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: max(1rem, env(safe-area-inset-top));
   }
 
   .modal-content {
     @apply w-full bg-white rounded-3xl shadow-2xl shadow-cocoa-950/20 border border-milk-200/70;
+    /* Scroll interno si el modal excede la altura de la pantalla */
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    margin: auto 0;
   }
 
   .kpi-card {

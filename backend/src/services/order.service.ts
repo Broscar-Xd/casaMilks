@@ -19,8 +19,10 @@ export const orderService = {
   },
 
   listByBranch: (branchId: string, dateFrom?: string, dateTo?: string) => {
-    const parsedDateFrom = dateFrom ? new Date(dateFrom) : undefined;
-    const parsedDateTo = dateTo ? new Date(dateTo) : undefined;
+    // dateFrom → inicio del día (00:00:00.000); dateTo → fin del día (23:59:59.999)
+    // Sin esto, filtrar por un día excluye todo lo posterior a la medianoche.
+    const parsedDateFrom = dateFrom ? new Date(`${dateFrom}T00:00:00.000`) : undefined;
+    const parsedDateTo = dateTo ? new Date(`${dateTo}T23:59:59.999`) : undefined;
     return orderRepository.listByBranch(branchId, parsedDateFrom, parsedDateTo);
   },
 
@@ -117,6 +119,12 @@ export const orderService = {
     const order = await orderRepository.findById(orderId);
     if (!order) throw new AppError('Pedido no encontrado', 404);
     if (order.status !== 'OPEN') throw new AppError('El pedido ya está cerrado');
+
+    // Bloquear el cobro si hay productos pendientes en cocina
+    const kitchenPending = (order.kitchenSends || []).some((s) => s.status === 'PENDING');
+    if (kitchenPending) {
+      throw new AppError('No se puede cobrar: hay productos en preparación en cocina. Espera a que estén listos.');
+    }
 
     const paymentTotal = input.payments.reduce((s, p) => s + Number(p.amount), 0);
     if (Math.abs(paymentTotal - Number(order.total)) > 0.01) {

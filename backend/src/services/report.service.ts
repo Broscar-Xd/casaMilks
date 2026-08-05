@@ -2,18 +2,35 @@ import { reportRepository } from '../repositories/report.repository';
 import { prisma } from '../config/database';
 import ExcelJS from 'exceljs';
 
+/**
+ * Convierte "YYYY-MM-DD" al inicio del día (00:00:00.000).
+ */
+function startOfDay(dateStr: string): Date {
+  const d = new Date(`${dateStr}T00:00:00.000`);
+  return d;
+}
+
+/**
+ * Convierte "YYYY-MM-DD" al FIN del día (23:59:59.999).
+ * Sin esto, el filtro lte con medianoche excluye todo el día.
+ */
+function endOfDay(dateStr: string): Date {
+  const d = new Date(`${dateStr}T23:59:59.999`);
+  return d;
+}
+
 export const reportService = {
   salesByProduct: (branchId: string, dateFrom: string, dateTo: string) =>
-    reportRepository.salesByProduct(branchId, new Date(dateFrom), new Date(dateTo)),
+    reportRepository.salesByProduct(branchId, startOfDay(dateFrom), endOfDay(dateTo)),
 
   salesByTimeSlot: (branchId: string, date: string) =>
-    reportRepository.salesByTimeSlot(branchId, new Date(date)),
+    reportRepository.salesByTimeSlot(branchId, new Date(`${date}T12:00:00`)),
 
   dailySummary: (branchId: string, dateFrom: string, dateTo: string) =>
-    reportRepository.dailySummary(branchId, new Date(dateFrom), new Date(dateTo)),
+    reportRepository.dailySummary(branchId, startOfDay(dateFrom), endOfDay(dateTo)),
 
   paymentsByMethod: (branchId: string, dateFrom: string, dateTo: string) =>
-    reportRepository.paymentsByMethod(branchId, new Date(dateFrom), new Date(dateTo)),
+    reportRepository.paymentsByMethod(branchId, startOfDay(dateFrom), endOfDay(dateTo)),
 
   /**
    * Genera un archivo Excel con los datos del reporte solicitado.
@@ -22,8 +39,8 @@ export const reportService = {
   exportToExcel: async (branchId: string, dateFrom: string, dateTo: string) => {
     const sales = await reportRepository.salesByProduct(
       branchId,
-      new Date(dateFrom),
-      new Date(dateTo)
+      startOfDay(dateFrom),
+      endOfDay(dateTo)
     );
 
     const productIds = sales.map((s) => s.productId);

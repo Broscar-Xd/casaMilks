@@ -44,11 +44,42 @@ export default function DashboardPage() {
   }
 
   const activeOrders = todayOrders.filter((o) => !['CLOSED', 'CANCELLED'].includes(o.status));
+  const closedOrders = todayOrders.filter((o) => o.status === 'CLOSED');
   const totalToday = todayOrders
     .filter((o) => o.status !== 'CANCELLED')
     .reduce((sum, o) => sum + Number(o.total), 0);
   const transactionsToday = todayOrders.filter((o) => o.status !== 'CANCELLED').length;
   const avgTicket = transactionsToday > 0 ? totalToday / transactionsToday : 0;
+
+  // Pagos por método (sobre pedidos cerrados de hoy)
+  const paymentsByMethod = (() => {
+    const counts: Record<string, number> = {};
+    const totals: Record<string, number> = {};
+    for (const o of closedOrders) {
+      for (const p of o.payments || []) {
+        counts[p.method] = (counts[p.method] || 0) + 1;
+        totals[p.method] = (totals[p.method] || 0) + Number(p.amount);
+      }
+    }
+    return { counts, totals };
+  })();
+
+  const methodLabels: Record<string, string> = {
+    CASH: 'Efectivo',
+    CARD: 'Tarjeta',
+    TRANSFER: 'Transferencia',
+    DEUNA: 'Deuna',
+    PANAPAY: 'PanaPay',
+  };
+  const methodOrder = ['CASH', 'TRANSFER', 'CARD', 'DEUNA', 'PANAPAY'];
+  const methodColors: Record<string, string> = {
+    CASH: 'text-emerald-600',
+    TRANSFER: 'text-blue-600',
+    CARD: 'text-violet-600',
+    DEUNA: 'text-amber-600',
+    PANAPAY: 'text-rose-600',
+  };
+  const methodsWithPayments = methodOrder.filter((m) => (paymentsByMethod.counts[m] || 0) > 0);
 
   return (
     <div>
@@ -101,6 +132,19 @@ export default function DashboardPage() {
               <p className="text-2xl font-semibold text-surface-900">{formatCurrency(avgTicket)}</p>
             </div>
           </div>
+          {/* Pagos por método */}
+          {methodsWithPayments.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-surface-100 space-y-1">
+              {methodsWithPayments.map((m) => (
+                <div key={m} className="flex items-center justify-between text-xs">
+                  <span className="text-surface-500">{methodLabels[m]}:</span>
+                  <span className={`font-semibold ${methodColors[m]}`}>
+                    {paymentsByMethod.counts[m]} ({formatCurrency(paymentsByMethod.totals[m])})
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

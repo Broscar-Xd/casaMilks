@@ -5,6 +5,7 @@ import { formatCurrency, getPaymentMethodLabel } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import { Loader2, Plus, Minus, Trash2, Receipt, ChefHat, ShoppingCart, X, Search, Banknote, CreditCard, Smartphone, Package, Layers, CheckCircle, XCircle, FileText, ChevronRight, ChevronLeft } from 'lucide-react';
 import type { TableItem, Product, Category, Order, OrderItem, ApiResponse, PaymentMethod, KitchenSend, ComboLine, Customer } from '@/types';
+import { hasKitchenPending } from '@/types';
 
 export default function POSPage() {
   const { currentBranch } = useBranch();
@@ -49,6 +50,9 @@ export default function POSPage() {
 
   // Payment
   const [payments, setPayments] = useState<Array<{ method: PaymentMethod; amount: number; referenceNumber: string; cashReceived: number }>>([]);
+
+  // Cocina pendiente: bloquea el cobro si hay items sin preparar
+  const [kitchenPending, setKitchenPending] = useState(false);
 
   // Invoice modal
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -234,10 +238,27 @@ export default function POSPage() {
       if (res.success && res.data) {
         setCurrentOrder(res.data);
         setPayments([]);
+        setKitchenPending(hasKitchenPending(res.data));
       }
     } catch { /* silent */ }
     setShowCloseModal(true);
   };
+
+  // Mientras el modal de cierre esté abierto, refresca el estado de cocina
+  // cada 4s para desbloquear el cobro cuando la cocina marque todo como listo.
+  useEffect(() => {
+    if (!showCloseModal || !currentOrder) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get<ApiResponse<Order>>(`/orders/table/${currentOrder.tableId}`);
+        if (res.success && res.data) {
+          setCurrentOrder(res.data);
+          setKitchenPending(hasKitchenPending(res.data));
+        }
+      } catch { /* silent */ }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [showCloseModal, currentOrder?.id, currentOrder?.tableId]);
 
   const openComboSelector = async (product: Product) => {
     setComboProduct(product);
@@ -912,10 +933,30 @@ export default function POSPage() {
                   </div>
                 )}
               </div>
+              {/* Alerta: cocina pendiente — no se puede cobrar */}
+              {kitchenPending && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 flex items-start gap-2.5">
+                  <ChefHat size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Hay productos en preparación</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      Espera a que la cocina marque todo como listo antes de cobrar.
+                      Se actualiza automáticamente.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="flex gap-3 mt-4">
                 <button onClick={() => setShowCloseModal(false)} className="btn-secondary flex-1">Cancelar</button>
-                <button onClick={submitClose} disabled={submitting || Math.abs(Number(currentOrder.total) - paymentTotal) > 0.01 || paymentTotal === 0} className="btn-primary flex-1">
-                  {submitting ? 'Procesando...' : 'Cobrar y Cerrar'}
+                <button
+                  onClick={submitClose}
+                  disabled={submitting || kitchenPending || Math.abs(Number(currentOrder.total) - paymentTotal) > 0.01 || paymentTotal === 0}
+                  className="btn-primary flex-1"
+                  title={kitchenPending ? 'Espera a que la cocina termine' : undefined}
+                >
+                  {kitchenPending ? (
+                    <><ChefHat size={16} /> En preparación...</>
+                  ) : submitting ? 'Procesando...' : 'Cobrar y Cerrar'}
                 </button>
               </div>
             </div>
@@ -925,16 +966,19 @@ export default function POSPage() {
 
       {/* MODAL: Tipo de comprobante (Consumidor final vs Factura) */}
       {showInvoiceModal && (
-        <div className="modal-overlay" onClick={() => setShowInvoiceModal(false)}>
+        <div className="modal-overlay">
+          {/* No se cierra tocando fuera — solo los botones internos cierran */}
           <div className="w-full max-w-md modal-content mx-2 sm:mx-0" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-milk-200/70 px-6 py-4 bg-gradient-to-r from-milk-50/60 to-transparent rounded-t-3xl">
               <h2 className="text-base font-semibold text-cocoa-900 flex items-center gap-2.5">
                 <span className="h-5 w-1 rounded-full bg-gradient-to-b from-cocoa-500 to-cocoa-700" />
                 Tipo de comprobante
               </h2>
-              <button onClick={() => setShowInvoiceModal(false)} className="btn-ghost p-1.5 rounded-xl hover:bg-milk-100">
-                <X size={18} />
-              </button>
+              {!showInvoiceForm && !invoiceResult && (
+                <button onClick={() => setShowInvoiceModal(false)} className="btn-ghost p-1.5 rounded-xl hover:bg-milk-100">
+                  <X size={18} />
+                </button>
+              )}
             </div>
 
             {!showInvoiceForm && !invoiceResult && (
@@ -1099,8 +1143,19 @@ export default function POSPage() {
                     </button>
                   ) : (
                     <>
-                      <button onClick={() => setShowInvoiceModal(false)} className="btn-secondary flex-1">
-                        Cancelar
+                      <button
+                        onClick={() => {
+                          // Si está en el formulario, vuelve a la selección de tipo
+                          if (showInvoiceForm) {
+                            setShowInvoiceForm(false);
+                            setInvoiceResult(null);
+                          } else {
+                            setShowInvoiceModal(false);
+                          }
+                        }}
+                        className="btn-secondary flex-1"
+                      >
+                        {showInvoiceForm ? 'Atrás' : 'Cancelar'}
                       </button>
                       <button onClick={async () => {
                     if (!invoiceData.invoiceName.trim() || !invoiceData.invoiceDocId.trim()) {
