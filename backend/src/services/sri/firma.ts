@@ -143,9 +143,11 @@ export async function firmarXML(xml: string, p12Base64: string, password: string
   signed.XmlSignature.SignedInfo.CanonicalizationMethod.Algorithm = 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315';
   signed.XmlSignature.SignedInfo.SignatureMethod.Algorithm = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1';
 
-  // Referencia al documento (enveloped + C14N)
+  // Referencia al documento: URI="#comprobante" apuntando al elemento raíz por
+  // su atributo id="comprobante" — EXACTAMENTE como genera el jFirmador oficial
+  // del SRI. (Con URI="" algunos validadores no resuelven bien el node-set.)
   const ref = new Reference();
-  ref.Uri = '';
+  ref.Uri = '#comprobante';
   ref.Transforms.Add(new XmlDsigEnvelopedSignatureTransform());
   ref.Transforms.Add(new XmlDsigC14NTransform());
   ref.DigestMethod.Algorithm = 'http://www.w3.org/2000/09/xmldsig#sha1';
