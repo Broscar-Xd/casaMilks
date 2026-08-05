@@ -3,13 +3,14 @@ import { api } from '@/services/api';
 import { formatCurrency } from '@/lib/utils';
 import { useBranch } from '@/contexts/BranchContext';
 import toast from 'react-hot-toast';
-import { Loader2, TrendingUp, ShoppingCart, DollarSign, Receipt } from 'lucide-react';
+import { Loader2, TrendingUp, ShoppingCart, DollarSign, Receipt, Wallet, PiggyBank } from 'lucide-react';
 import type { ApiResponse, Order, DailyClose } from '@/types';
 
 export default function DashboardPage() {
   const { currentBranch } = useBranch();
   const [todayOrders, setTodayOrders] = useState<Order[]>([]);
   const [lastClose, setLastClose] = useState<DailyClose | null>(null);
+  const [supplierToday, setSupplierToday] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -18,13 +19,15 @@ export default function DashboardPage() {
     const fetchData = async () => {
       try {
         const today = new Date().toISOString().split('T')[0];
-        const [ordersRes, closeRes] = await Promise.all([
+        const [ordersRes, closeRes, supplierRes] = await Promise.all([
           api.get<ApiResponse<Order[]>>(`/orders?branchId=${currentBranch.id}&dateFrom=${today}`),
           api.get<ApiResponse<DailyClose>>(`/closes/by-date?branchId=${currentBranch.id}&date=${today}`),
+          api.get<ApiResponse<{ total: number }>>(`/suppliers/sum?branchId=${currentBranch.id}&date=${today}`),
         ]);
 
         if (ordersRes.success && ordersRes.data) setTodayOrders(ordersRes.data);
         if (closeRes.success) setLastClose(closeRes.data || null);
+        if (supplierRes.success && supplierRes.data) setSupplierToday(supplierRes.data.total);
       } catch {
         // Silencioso
       } finally {
@@ -50,6 +53,8 @@ export default function DashboardPage() {
     .reduce((sum, o) => sum + Number(o.total), 0);
   const transactionsToday = todayOrders.filter((o) => o.status !== 'CANCELLED').length;
   const avgTicket = transactionsToday > 0 ? totalToday / transactionsToday : 0;
+  // Valor neto diario = Ventas Hoy − pagos a proveedores de hoy
+  const netToday = totalToday - supplierToday;
 
   // Pagos por método (sobre pedidos cerrados de hoy)
   const paymentsByMethod = (() => {
@@ -108,6 +113,19 @@ export default function DashboardPage() {
               <p className="text-2xl font-semibold text-surface-900">{formatCurrency(totalToday)}</p>
             </div>
           </div>
+          {/* Pagos por método */}
+          {methodsWithPayments.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-surface-100 space-y-1">
+              {methodsWithPayments.map((m) => (
+                <div key={m} className="flex items-center justify-between text-xs">
+                  <span className="text-surface-500">{methodLabels[m]}:</span>
+                  <span className={`font-semibold ${methodColors[m]}`}>
+                    {paymentsByMethod.counts[m]} ({formatCurrency(paymentsByMethod.totals[m])})
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="kpi-card">
@@ -132,19 +150,35 @@ export default function DashboardPage() {
               <p className="text-2xl font-semibold text-surface-900">{formatCurrency(avgTicket)}</p>
             </div>
           </div>
-          {/* Pagos por método */}
-          {methodsWithPayments.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-surface-100 space-y-1">
-              {methodsWithPayments.map((m) => (
-                <div key={m} className="flex items-center justify-between text-xs">
-                  <span className="text-surface-500">{methodLabels[m]}:</span>
-                  <span className={`font-semibold ${methodColors[m]}`}>
-                    {paymentsByMethod.counts[m]} ({formatCurrency(paymentsByMethod.totals[m])})
-                  </span>
-                </div>
-              ))}
+        </div>
+
+        <div className="kpi-card">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
+              <PiggyBank size={18} />
             </div>
-          )}
+            <div>
+              <p className="text-xs text-surface-400 font-medium">Valor Neto Diario</p>
+              <p className={`text-2xl font-semibold ${netToday < 0 ? 'text-red-600' : 'text-teal-600'}`}>
+                {formatCurrency(netToday)}
+              </p>
+            </div>
+          </div>
+          {/* Desglose: Ventas − Proveedores */}
+          <div className="mt-3 pt-3 border-t border-surface-100 space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-surface-500">Ventas hoy:</span>
+              <span className="font-semibold text-emerald-600">{formatCurrency(totalToday)}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-surface-500">Pagos a proveedores:</span>
+              <span className="font-semibold text-red-500">− {formatCurrency(supplierToday)}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs pt-1 border-t border-surface-100">
+              <span className="font-medium text-surface-600">Neto:</span>
+              <span className={`font-bold ${netToday < 0 ? 'text-red-600' : 'text-teal-600'}`}>{formatCurrency(netToday)}</span>
+            </div>
+          </div>
         </div>
       </div>
 

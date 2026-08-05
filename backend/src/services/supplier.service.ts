@@ -8,6 +8,14 @@ export const supplierService = {
     return supplierRepository.list(branchId, parsedFrom, parsedTo, supplierName);
   },
 
+  /** Total pagado a proveedores en el día (para el dashboard). */
+  sumByDate: async (branchId: string, date: string) => {
+    const start = new Date(`${date}T00:00:00.000`);
+    const end = new Date(`${date}T23:59:59.999`);
+    const result = await supplierRepository.sumByDate(branchId, start, end);
+    return { total: Number(result._sum?.total || 0) };
+  },
+
   create: async (input: CreateSupplierPaymentInput & { branchId: string }) => {
     const cashAmount = Number(input.cashAmount || 0);
     const transferAmount = Number(input.transferAmount || 0);

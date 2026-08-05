@@ -31,4 +31,14 @@ export const supplierRepository = {
       distinct: ['supplierName'],
       orderBy: { supplierName: 'asc' },
     }),
+
+  /** Suma el total pagado a proveedores en un rango de fechas. */
+  sumByDate: (branchId: string, dateFrom: Date, dateTo: Date) =>
+    prisma.supplierPayment.aggregate({
+      where: {
+        branchId,
+        createdAt: { gte: dateFrom, lte: dateTo },
+      },
+      _sum: { total: true },
+    }),
 };

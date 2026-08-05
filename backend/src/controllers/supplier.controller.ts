@@ -25,4 +25,13 @@ export const supplierController = {
       res.json({ success: true, data: suppliers });
     } catch (error) { next(error); }
   },
+
+  /** GET /api/suppliers/sum?branchId=&date= — total pagado a proveedores en el día */
+  sumByDate: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const { branchId, date } = req.query;
+      const data = await supplierService.sumByDate(branchId as string, date as string);
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
 };

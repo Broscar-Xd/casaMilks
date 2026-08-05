@@ -10,4 +10,5 @@ supplierRoutes.use(authenticate);
 
 supplierRoutes.get('/', supplierController.list);
 supplierRoutes.get('/list', supplierController.listSuppliers);
+supplierRoutes.get('/sum', supplierController.sumByDate);
 supplierRoutes.post('/', validate(createSupplierPaymentSchema), supplierController.create);
