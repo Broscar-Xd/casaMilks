@@ -248,3 +248,30 @@ export interface ApiResponse<T = unknown> {
   error?: string;
   message?: string;
 }
+
+export interface ElectronicReceipt {
+  id: string;
+  orderId: string;
+  branchId: string;
+  type: string;
+  sequential: number;
+  authorization: string;
+  claveAcceso: string | null;
+  numeroAutorizacion: string | null;
+  ambiente: string | null;
+  xmlContent: string | null;
+  xmlAutorizado: string | null;
+  errorMessage: string | null;
+  status: string;
+  createdAt: string;
+  authorizedAt: string | null;
+  order?: {
+    id: string;
+    invoiceName: string | null;
+    invoiceDocId: string | null;
+    total: number;
+    createdAt: string;
+    table: { name: string } | null;
+    user: { name: string } | null;
+  };
+}

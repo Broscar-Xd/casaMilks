@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { BranchProvider } from '@/contexts/BranchContext';
-import { AppLayout } from '@/components/layout/AppLayout';
+import { AppLayout, RequireAdmin } from '@/components/layout/AppLayout';
 import LoginPage from '@/pages/LoginPage';
 import POSPage from '@/pages/pos/POSPage';
 import KitchenPage from '@/pages/kitchen/KitchenPage';
@@ -20,6 +20,7 @@ import ReportsPage from '@/pages/admin/ReportsPage';
 import SuppliersPage from '@/pages/admin/SuppliersPage';
 import SettingsPage from '@/pages/admin/SettingsPage';
 import SignaturesPage from '@/pages/admin/SignaturesPage';
+import ReceiptsPage from '@/pages/admin/ReceiptsPage';
 
 export default function App() {
   return (
@@ -40,6 +41,7 @@ export default function App() {
               <Route path="/admin/branches" element={<BranchesPage />} />
               <Route path="/admin/tables" element={<TablesAdminPage />} />
               <Route path="/admin/orders" element={<OrdersHistoryPage />} />
+              <Route path="/admin/receipts" element={<RequireAdmin><ReceiptsPage /></RequireAdmin>} />
               <Route path="/admin/closes" element={<ClosesPage />} />
               <Route path="/admin/suppliers" element={<SuppliersPage />} />
               <Route path="/admin/reports" element={<ReportsPage />} />

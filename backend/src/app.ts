@@ -18,6 +18,7 @@ import { tableRoutes } from './routes/table.routes';
 import { supplierRoutes } from './routes/supplier.routes';
 import { signatureRoutes } from './routes/signature.routes';
 import { customerRoutes } from './routes/customer.routes';
+import { receiptRoutes } from './routes/receipt.routes';
 import { prisma } from './config/database';
 
 const app = express();
@@ -51,6 +52,7 @@ app.use('/api/tables', tableRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/signatures', signatureRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/receipts', receiptRoutes);
 
 // TEMPORAL (solo diagnóstico — quitar después): descargar el último XML firmado
 app.get('/api/debug/last-xml', async (_req, res) => {

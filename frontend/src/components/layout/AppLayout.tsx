@@ -28,3 +28,22 @@ export function AppLayout() {
     </div>
   );
 }
+
+/** Protege una ruta para que solo ADMIN pueda verla (por URL directa). */
+export function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-milk-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-cocoa-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!user || user.role !== 'ADMIN') {
+    return <Navigate to="/pos" replace />;
+  }
+
+  return <>{children}</>;
+}
