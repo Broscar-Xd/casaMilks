@@ -482,11 +482,12 @@ model Payment {
   @@map("payments")
 }
 
-/// Comprobantes electrónicos emitidos (nota de venta RIMPE).
+/// Comprobantes electrónicos emitidos (factura, nota de venta RIMPE, etc.).
 model ElectronicReceipt {
   id            String   @id @default(uuid())
   orderId       String   @unique @map("order_id")
   branchId      String   @map("branch_id")
+  type          String   @default("FACTURA") // FACTURA | NOTA_VENTA
   sequential    Int      @map("sequential")
   authorization String   @map("authorization")
   claveAcceso   String?  @map("clave_acceso")
@@ -504,7 +505,7 @@ model ElectronicReceipt {
   order  Order  @relation(fields: [orderId], references: [id])
   branch Branch @relation(fields: [branchId], references: [id])
 
-  @@unique([branchId, sequential])
+  @@unique([branchId, type, sequential])
   @@index([branchId])
   @@map("electronic_receipts")
 }

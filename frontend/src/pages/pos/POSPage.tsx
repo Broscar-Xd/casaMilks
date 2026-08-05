@@ -1111,6 +1111,19 @@ export default function POSPage() {
                               estado: emitRes.data.estado,
                               mensajes: emitRes.data.mensajes || [],
                             });
+                            // Descargar el XML firmado automáticamente
+                            if (emitRes.data.xmlFirmado) {
+                              const blob = new Blob([emitRes.data.xmlFirmado], { type: 'application/xml;charset=utf-8' });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `factura_${emitRes.data.claveAcceso}.xml`;
+                              document.body.appendChild(a);
+                              a.click();
+                              document.body.removeChild(a);
+                              URL.revokeObjectURL(url);
+                              toast.success('XML firmado descargado');
+                            }
                             if (emitRes.data.estado === 'AUTORIZADO') {
                               toast.success('Factura electrónica AUTORIZADA por el SRI');
                             } else {

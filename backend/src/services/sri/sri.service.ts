@@ -11,8 +11,12 @@ export interface EmitInvoiceResult {
   claveAcceso: string;
   numeroAutorizacion?: string;
   estado: string;
-  mensajes: Array<{ identificador: string; mensaje: string }>;
+  mensajes: Array<{ identificador: string; mensaje: string; informacionAdicional?: string }>;
   sequential: number;
+  /** XML firmado enviado al SRI (para descargar/archivar) */
+  xmlFirmado?: string;
+  /** XML autorizado devuelto por el SRI (si está autorizado) */
+  xmlAutorizado?: string;
 }
 
 /**
@@ -111,11 +115,14 @@ export async function emitirFacturaElectronica(orderId: string): Promise<EmitInv
   const xmlFirmado = firmarXML(xml, signature.p12Base64, signature.password);
 
   // Guardar comprobante (estado inicial PENDING)
+  // type: FACTURA — el secuencial es por tipo, así las notas de venta
+  // (NOTA_VENTA) y las facturas no colisionan en el unique (branch,type,seq).
   const receipt = await prisma.electronicReceipt.upsert({
     where: { orderId },
     create: {
       orderId,
       branchId: order.branchId,
+      type: 'FACTURA',
       sequential,
       authorization: `CASAMILKS-${sequential}`,
       claveAcceso,
@@ -124,6 +131,7 @@ export async function emitirFacturaElectronica(orderId: string): Promise<EmitInv
       status: 'PENDING',
     },
     update: {
+      type: 'FACTURA',
       sequential,
       claveAcceso,
       ambiente: AMBIENTE,
@@ -149,6 +157,7 @@ export async function emitirFacturaElectronica(orderId: string): Promise<EmitInv
         estado: 'DEVUELTA',
         mensajes: recepcion.mensajes,
         sequential,
+        xmlFirmado,
       };
     }
 
@@ -171,6 +180,8 @@ export async function emitirFacturaElectronica(orderId: string): Promise<EmitInv
         estado: 'AUTORIZADO',
         mensajes: [],
         sequential,
+        xmlFirmado,
+        xmlAutorizado: autorizacion.xmlAutorizado || undefined,
       };
     }
 
@@ -185,6 +196,7 @@ export async function emitirFacturaElectronica(orderId: string): Promise<EmitInv
       estado: autorizacion.estado,
       mensajes: autorizacion.mensajes,
       sequential,
+      xmlFirmado,
     };
   } catch (err: any) {
     await prisma.electronicReceipt.update({
