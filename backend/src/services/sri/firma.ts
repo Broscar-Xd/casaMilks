@@ -17,8 +17,14 @@ export interface CertInfo {
   ruc?: string;
 }
 
-/** Extrae llave privada y certificado del .p12 */
-function extractKeyAndCert(p12Buffer: Buffer, password: string): { privateKey: forge.pki.rsa.PrivateKey; cert: forge.pki.Certificate } {
+interface P12Data {
+  privateKey: forge.pki.rsa.PrivateKey;
+  cert: forge.pki.Certificate;
+  chain: forge.pki.Certificate[]; // todos los certificados del .p12 (titular + CA intermedia + raíz)
+}
+
+/** Extrae llave privada y TODOS los certificados del .p12 */
+function extractP12(p12Buffer: Buffer, password: string): P12Data {
   const asn1 = forge.asn1.fromDer(forge.util.createBuffer(p12Buffer.toString('binary')));
   const p12 = forge.pkcs12.pkcs12FromAsn1(asn1, password);
 
@@ -30,18 +36,19 @@ function extractKeyAndCert(p12Buffer: Buffer, password: string): { privateKey: f
   if (!keyBags.length) throw new Error('No se encontró una llave privada en el archivo .p12');
   const privateKey = keyBags[0].key as forge.pki.rsa.PrivateKey;
 
-  // Certificado
+  // TODOS los certificados (el primero es el del titular; los demás son la cadena)
   const certBags = p12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag] || [];
   if (!certBags.length) throw new Error('No se encontró un certificado en el archivo .p12');
-  const cert = certBags[0].cert as forge.pki.Certificate;
+  const chain = certBags.map((b) => b.cert as forge.pki.Certificate);
+  const cert = chain[0];
 
-  return { privateKey, cert };
+  return { privateKey, cert, chain };
 }
 
 /** Obtiene información del certificado para mostrarla en admin */
 export function getCertInfo(p12Base64: string, password: string): CertInfo {
   const buffer = Buffer.from(p12Base64, 'base64');
-  const { cert } = extractKeyAndCert(buffer, password);
+  const { cert } = extractP12(buffer, password);
 
   const subjectParts = cert.subject.attributes
     .map((a: any) => (a.name === 'commonName' || a.name === 'organizationName' ? a.value : null))
@@ -69,7 +76,7 @@ export function getCertInfo(p12Base64: string, password: string): CertInfo {
 /** Firma el XML del comprobante (firma enveloped, estándar SRI) */
 export function firmarXML(xml: string, p12Base64: string, password: string): string {
   const buffer = Buffer.from(p12Base64, 'base64');
-  const { privateKey, cert } = extractKeyAndCert(buffer, password);
+  const { privateKey, chain } = extractP12(buffer, password);
 
   // La llave privada en formato PEM para xml-crypto
   const pem = forge.pki.privateKeyToPem(privateKey);
@@ -81,6 +88,7 @@ export function firmarXML(xml: string, p12Base64: string, password: string): str
   sig.canonicalizationAlgorithm = 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315';
 
   // Transformaciones: enveloped-signature + C14N (estándar SRI), URI vacía
+  // (URI="" firma TODO el documento; es lo que genera el jFirmador oficial del SRI)
   sig.addReference(
     "//*[local-name(.)='factura']",
     ['http://www.w3.org/2000/09/xmldsig#enveloped-signature', 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315'],
@@ -88,7 +96,7 @@ export function firmarXML(xml: string, p12Base64: string, password: string): str
     '',
     '',
     '',
-    false
+    true // isEmptyUri → genera URI=""
   );
 
   sig.computeSignature(xml, {
@@ -99,14 +107,22 @@ export function firmarXML(xml: string, p12Base64: string, password: string): str
 
   const signed = sig.getSignedXml();
 
-  // REEMPLAZAR el KeyInfo generado por xml-crypto (a veces queda sin el certificado)
-  // por uno correcto con el X509 completo. Si xml-crypto no generó KeyInfo, se inserta.
+  // REEMPLAZAR el KeyInfo generado por xml-crypto por uno correcto con la
+  // CADENA COMPLETA de certificados: un elemento <ds:X509Certificate> por
+  // certificado (titular + CA intermedia + raíz), como genera el jFirmador.
+  // El SRI necesita la cadena para validar la confianza del certificado.
   // El KeyInfo no forma parte de la firma, así que modificarlo NO invalida el SignatureValue.
-  const x509 = forge.pki.certificateToPem(cert)
-    .replace(/-----BEGIN CERTIFICATE-----/, '')
-    .replace(/-----END CERTIFICATE-----/, '')
-    .replace(/\n/g, '');
-  const keyInfoCorrecto = `<ds:KeyInfo><ds:X509Data><ds:X509Certificate>${x509}</ds:X509Certificate></ds:X509Data></ds:KeyInfo>`;
+  const cadenaX509 = chain
+    .map(
+      (c) =>
+        `<ds:X509Certificate>${forge.pki
+          .certificateToPem(c)
+          .replace(/-----BEGIN CERTIFICATE-----/, '')
+          .replace(/-----END CERTIFICATE-----/, '')
+          .replace(/\n/g, '')}</ds:X509Certificate>`
+    )
+    .join('');
+  const keyInfoCorrecto = `<ds:KeyInfo><ds:X509Data>${cadenaX509}</ds:X509Data></ds:KeyInfo>`;
 
   let finalXml: string;
   if (signed.includes('<ds:KeyInfo>')) {
