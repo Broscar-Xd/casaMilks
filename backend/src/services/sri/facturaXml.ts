@@ -218,5 +218,10 @@ export function generarFacturaXML(p: FacturaParams): string {
   </detalles>${infoAdicional}
 </factura>`;
 
-  return xml;
+    // MINIFICAR: eliminar los espacios en blanco entre etiquetas.
+  // Esto hace que la forma canónica (C14N) sea idéntica para cualquier parser,
+  // garantizando que el digest SHA-1 que calculamos coincida con el del SRI
+  // (Apache Santuario). Los espacios DENTRO del texto se preservan.
+  const xmlMin = xml.replace(/>\s+</g, '><').trim();
+  return xmlMin;
 }
