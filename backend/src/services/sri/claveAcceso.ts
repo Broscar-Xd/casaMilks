@@ -5,6 +5,7 @@
  * NOTA: el SRI actualizó el esquema (factura 1.1.0 vigente) y la clave pasó
  * de 48 a 49 dígitos: el código numérico ahora tiene 9 dígitos (antes 8).
  */
+import { fechaEcuador } from './fechaEcuador';
 
 export function generarClaveAcceso(params: {
   fechaEmision: Date;      // fecha de emisión del comprobante
@@ -17,9 +18,8 @@ export function generarClaveAcceso(params: {
 }): string {
   const { fechaEmision, tipoComprobante, ruc, ambiente, establecimiento, puntoEmision, secuencial } = params;
 
-  const dia = String(fechaEmision.getDate()).padStart(2, '0');
-  const mes = String(fechaEmision.getMonth() + 1).padStart(2, '0');
-  const anio = String(fechaEmision.getFullYear());
+  // Fecha SIEMPRE en zona horaria de Ecuador (el SRI valida contra su fecha local)
+  const { dia, mes, anio } = fechaEcuador(fechaEmision);
   const fecha = `${dia}${mes}${anio}`;
 
   const serie = establecimiento + puntoEmision; // 6 dígitos

@@ -4,6 +4,7 @@
  * Incluye info tributaria, info del comprador, detalle con impuestos IVA
  * (0%, 5% o 15% según taxRate del producto), pagos e info adicional.
  */
+import { fechaEcuador } from './fechaEcuador';
 
 export interface FacturaParams {
   ambiente: string; // 1 pruebas | 2 producción
@@ -103,7 +104,9 @@ function normalizarRimpe(legend: string | undefined): string | undefined {
 }
 
 export function generarFacturaXML(p: FacturaParams): string {
-  const fecha = `${String(p.fechaEmision.getDate()).padStart(2, '0')}/${String(p.fechaEmision.getMonth() + 1).padStart(2, '0')}/${p.fechaEmision.getFullYear()}`;
+  // Fecha SIEMPRE en zona horaria de Ecuador (el SRI valida contra su fecha local)
+  const { dia, mes, anio } = fechaEcuador(p.fechaEmision);
+  const fecha = `${dia}/${mes}/${anio}`;
 
   // Agrupar impuestos
   const taxGroups = new Map<number, { base: number; valor: number }>();
