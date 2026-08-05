@@ -1051,16 +1051,6 @@ export default function POSPage() {
                           <p className="break-all"><span className="font-medium">Clave:</span> {invoiceResult.claveAcceso}</p>
                           <p className="break-all"><span className="font-medium">Autorización:</span> {invoiceResult.numeroAutorizacion}</p>
                         </div>
-                        <button
-                          onClick={() => {
-                            const updated = { ...invoiceOrderRef, ...invoiceData, numeroAutorizacion: invoiceResult.numeroAutorizacion, claveAcceso: invoiceResult.claveAcceso };
-                            printReceipt(updated);
-                            setShowInvoiceModal(false);
-                          }}
-                          className="btn-primary w-full text-sm py-2"
-                        >
-                          Imprimir factura
-                        </button>
                       </div>
                     ) : (
                       <div className="rounded-xl border border-red-200 bg-red-50 p-3.5">
@@ -1085,10 +1075,24 @@ export default function POSPage() {
                   </div>
                 )}
                 <div className="flex gap-3 border-t border-milk-200/70 px-6 py-4">
-                  <button onClick={() => setShowInvoiceModal(false)} className="btn-secondary flex-1">
-                    Cancelar
-                  </button>
-                  <button onClick={async () => {
+                  {invoiceResult ? (
+                    /* Ya se emitió — solo mostrar Cerrar */
+                    <button
+                      onClick={() => {
+                        const updated = { ...invoiceOrderRef, ...invoiceData, numeroAutorizacion: invoiceResult.numeroAutorizacion, claveAcceso: invoiceResult.claveAcceso };
+                        printReceipt(updated);
+                        setShowInvoiceModal(false);
+                      }}
+                      className="btn-primary flex-1"
+                    >
+                      <CheckCircle size={16} /> Cerrar
+                    </button>
+                  ) : (
+                    <>
+                      <button onClick={() => setShowInvoiceModal(false)} className="btn-secondary flex-1">
+                        Cancelar
+                      </button>
+                      <button onClick={async () => {
                     if (!invoiceData.invoiceName.trim() || !invoiceData.invoiceDocId.trim()) {
                       toast.error('Nombre y cédula son requeridos');
                       return;
@@ -1150,6 +1154,8 @@ export default function POSPage() {
                       'Emitir factura'
                     )}
                   </button>
+                    </>
+                  )}
                 </div>
               </>
             )}
