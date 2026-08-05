@@ -77,23 +77,19 @@ export function firmarXML(xml: string, p12Base64: string, password: string): str
   const sig = new SignedXml();
   sig.signingKey = pem;
   sig.signatureAlgorithm = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1';
+  // C14N ESTÁNDAR (el SRI rechaza el exclusive-c14n que xml-crypto usa por defecto)
+  sig.canonicalizationAlgorithm = 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315';
 
-  // Transformaciones: enveloped-signature + C14N (estándar SRI)
+  // Transformaciones: enveloped-signature + C14N (estándar SRI), URI vacía
   sig.addReference(
     "//*[local-name(.)='factura']",
     ['http://www.w3.org/2000/09/xmldsig#enveloped-signature', 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315'],
-    'http://www.w3.org/2000/09/xmldsig#sha1'
+    'http://www.w3.org/2000/09/xmldsig#sha1',
+    '',
+    '',
+    '',
+    false
   );
-
-  // KeyInfo con el certificado X509 (requerido por el SRI)
-  const x509 = forge.pki.certificateToPem(cert)
-    .replace(/-----BEGIN CERTIFICATE-----/, '')
-    .replace(/-----END CERTIFICATE-----/, '')
-    .replace(/\n/g, '');
-  sig.keyInfoProvider = {
-    getKeyInfo: () => `<ds:X509Data><ds:X509Certificate>${x509}</ds:X509Certificate></ds:X509Data>`,
-    getKey: () => pem,
-  } as any;
 
   sig.computeSignature(xml, {
     prefix: 'ds',
@@ -101,5 +97,22 @@ export function firmarXML(xml: string, p12Base64: string, password: string): str
     location: { reference: "//*[local-name(.)='factura']", action: 'append' },
   });
 
-  return sig.getSignedXml();
+  const signed = sig.getSignedXml();
+
+  // REEMPLAZAR el KeyInfo generado por xml-crypto (a veces queda sin el certificado)
+  // por uno correcto con el X509 completo. Si xml-crypto no generó KeyInfo, se inserta.
+  // El KeyInfo no forma parte de la firma, así que modificarlo NO invalida el SignatureValue.
+  const x509 = forge.pki.certificateToPem(cert)
+    .replace(/-----BEGIN CERTIFICATE-----/, '')
+    .replace(/-----END CERTIFICATE-----/, '')
+    .replace(/\n/g, '');
+  const keyInfoCorrecto = `<ds:KeyInfo><ds:X509Data><ds:X509Certificate>${x509}</ds:X509Certificate></ds:X509Data></ds:KeyInfo>`;
+
+  let finalXml: string;
+  if (signed.includes('<ds:KeyInfo>')) {
+    finalXml = signed.replace(/<ds:KeyInfo>[\s\S]*?<\/ds:KeyInfo>/, keyInfoCorrecto);
+  } else {
+    finalXml = signed.replace('</ds:Signature>', `${keyInfoCorrecto}</ds:Signature>`);
+  }
+  return finalXml;
 }
