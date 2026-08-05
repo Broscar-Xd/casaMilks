@@ -6,3 +6,4 @@ dist/
 *.db-journal
 .env
 auxiliar
+FACTURACION_ELECTRONICA_SRI.md
