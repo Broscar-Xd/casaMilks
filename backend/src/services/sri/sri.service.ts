@@ -111,8 +111,8 @@ export async function emitirFacturaElectronica(orderId: string): Promise<EmitInv
     })),
   });
 
-  // Firmar
-  const xmlFirmado = firmarXML(xml, signature.p12Base64, signature.password);
+  // Firmar (XAdES-EPES con SigningTime de hoy)
+  const xmlFirmado = await firmarXML(xml, signature.p12Base64, signature.password);
 
   // Guardar comprobante (estado inicial PENDING)
   // type: FACTURA — el secuencial es por tipo, así las notas de venta

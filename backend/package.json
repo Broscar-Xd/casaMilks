@@ -16,6 +16,7 @@
   "dependencies": {
     "@prisma/client": "^5.22.0",
     "@types/xml-crypto": "^1.4.6",
+    "@xmldom/xmldom": "^0.9.10",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -26,6 +27,8 @@
     "jsonwebtoken": "^9.0.2",
     "node-forge": "^1.4.0",
     "uuid": "^10.0.0",
+    "xadesjs": "^2.6.8",
+    "xml-core": "^1.2.6",
     "xml-crypto": "^2.1.5",
     "zod": "^3.23.8"
   },

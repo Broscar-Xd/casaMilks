@@ -1,19 +1,31 @@
 import forge from 'node-forge';
 import crypto from 'crypto';
+import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { setNodeDependencies } from 'xml-core';
+import { Application } from 'xmldsigjs';
+import {
+  SignedXml,
+} from 'xadesjs';
+import {
+  KeyInfo,
+  KeyInfoX509Data,
+  Reference,
+  XmlDsigEnvelopedSignatureTransform,
+  XmlDsigC14NTransform,
+} from 'xmldsigjs';
+
+// Configuración única del entorno para xadesjs (WebCrypto + DOM)
+Application.setEngine('node-webcrypto', crypto.webcrypto as any);
+setNodeDependencies({ DOMParser, XMLSerializer } as any);
 
 /**
- * Módulo de firma electrónica XMLDSig (estándar SRI).
- * - Parsea certificado .p12 (PKCS#12) con su clave.
- * - Firma el XML de comprobante con firma enveloped.
- * - Algoritmo: RSA-SHA1 + canonicalización C14N 1.0 aplicada DIRECTAMENTE
- *   al string del XML (sin DOM intermedio).
- *
- * NOTA IMPORTANTE: no se usa xml-crypto porque su parser (xmldom) re-serializa
- * el documento al canonicalizar (cambiando espacios/auto-cierre), generando un
- * DigestValue distinto al que calcula el validador del SRI (Apache Santuario)
- * → "El nodo [comprobante] no se encuentra firmado". La firma manual con C14N
- * sobre el string exacto es el mismo enfoque del jFirmador del SRI y de la
- * librería ecuatoriana firma-ec, probada en producción.
+ * Módulo de firma electrónica XAdES-EPES (estándar SRI).
+ * Usa xadesjs (implementación oficial de XAdES en JS, interoperable con
+ * Apache Santuario — el validador del SRI) para generar la firma con:
+ * - <xades:SigningTime>: fecha/hora de la firma (hoy)
+ * - <xades:SigningCertificate>: digest del certificado + issuer/serial
+ * - Referencia firmada a las SignedProperties
+ * El .p12 se parsea con node-forge (llave + certificado).
  */
 
 export interface CertInfo {
@@ -80,23 +92,6 @@ export function getCertInfo(p12Base64: string, password: string): CertInfo {
   };
 }
 
-/**
- * Canonicalización C14N 1.0 aplicada al string del XML.
- * Para documentos generados por nuestro módulo (sin comentarios, sin CDATA,
- * sin PIs, sin DOCTYPE, atributos ya ordenados, texto ya escapado):
- * 1. Quitar el prólogo XML
- * 2. Normalizar CRLF → LF
- * 3. CR en el contenido → &#13;
- * IMPORTANTE: NO se eliminan los espacios en blanco entre etiquetas:
- * son nodos de texto significativos en C14N y el SRI los preserva.
- */
-function canonicalize(xml: string): string {
-  return xml
-    .replace(/<\?xml[^>]*\?>/i, '')
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '&#13;');
-}
-
 /** Base64 de un certificado en una sola línea (sin cabeceras ni CR/LF). */
 function certBase64(cert: forge.pki.Certificate): string {
   return forge.pki
@@ -106,43 +101,69 @@ function certBase64(cert: forge.pki.Certificate): string {
     .replace(/[\r\n]/g, '');
 }
 
-/** Firma el XML del comprobante (firma enveloped, estándar SRI) */
-export function firmarXML(xml: string, p12Base64: string, password: string): string {
+/**
+ * Firma el XML del comprobante con XAdES-EPES (estándar SRI).
+ * Genera la firma con SigningTime (hoy) y SigningCertificate,
+ * exactamente como la espera Apache Santuario y el validador FirmaEC.
+ */
+export async function firmarXML(xml: string, p12Base64: string, password: string): Promise<string> {
   const buffer = Buffer.from(p12Base64, 'base64');
-  const { privateKey, chain } = extractP12(buffer, password);
-  const pem = forge.pki.privateKeyToPem(privateKey);
+  const { privateKey, cert } = extractP12(buffer, password);
 
-  // 1. Canonicalizar el documento: quitar el prólogo. El XML ya viene
-  // MINIFICADO (sin espacios entre etiquetas), así que su forma canónica
-  // es idéntica para cualquier parser (la calcula igual el SRI).
-  const canonDoc = canonicalize(xml);
-  const digestValue = crypto.createHash('sha1').update(canonDoc, 'utf8').digest('base64');
+  // Llave privada en JWK (desde los BigIntegers de forge) para WebCrypto
+  const hexToB64 = (hex: string) => Buffer.from(hex.length % 2 ? '0' + hex : hex, 'hex').toString('base64');
+  const k = privateKey;
+  const jwk = {
+    kty: 'RSA',
+    n: hexToB64(k.n.toString(16)),
+    e: hexToB64(k.e.toString(16)),
+    d: hexToB64(k.d.toString(16)),
+    p: hexToB64(k.p.toString(16)),
+    q: hexToB64(k.q.toString(16)),
+    dp: hexToB64(k.dP.toString(16)),
+    dq: hexToB64(k.dQ.toString(16)),
+    qi: hexToB64(k.qInv.toString(16)),
+    alg: 'RS1',
+    ext: true,
+  };
+  const key = await crypto.webcrypto.subtle.importKey(
+    'jwk',
+    jwk as any,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-1' },
+    false,
+    ['sign']
+  );
 
-  // 2. SignedInfo MINIFICADO (URI="" → firma de todo el documento, como el jFirmador).
-  // IMPORTANTE: C14N NO usa self-closing tags (<x/> se representa como <x></x>);
-  // por eso los elementos vacíos van con etiqueta de cierre explícita.
-  const signedInfo = `<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference URI=""><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${digestValue}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
+  // Certificado (DER para el KeyInfo)
+  const certDer = Buffer.from(forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes(), 'binary');
+  const x509b64 = certBase64(cert);
 
-  // 3. Firmar el SignedInfo canonicalizado con RSA-SHA1 estándar
-  // (crypto.createSign genera PKCS#1 v1.5 con DigestInfo, el formato exacto
-  // que verifica Apache Santuario en el SRI; node-forge no lo hace).
-  const canonSignedInfo = canonicalize(signedInfo);
-  const signer = crypto.createSign('RSA-SHA1');
-  signer.update(canonSignedInfo, 'utf8');
-  const signatureValue = signer.sign(pem, 'base64');
+  const signed = new SignedXml();
+  // C14N estándar + RSA-SHA1 (compatibilidad SRI)
+  signed.XmlSignature.SignedInfo.CanonicalizationMethod.Algorithm = 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315';
+  signed.XmlSignature.SignedInfo.SignatureMethod.Algorithm = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1';
 
-  // 4. KeyInfo con el certificado del FIRMANTE (el primero del .p12).
-  // El jFirmador oficial del SRI incluye SOLO el certificado del titular en el
-  // KeyInfo; la cadena de la CA no va en el comprobante. Incluir los
-  // certificados de la CA dentro del KeyInfo puede causar
-  // "No tiene Cadena de Confianza Valida" en el SRI.
-  const certTitular = certBase64(chain[0]);
-  const cadenaX509 = `<ds:X509Certificate>${certTitular}</ds:X509Certificate>`;
+  // Referencia al documento (enveloped + C14N)
+  const ref = new Reference();
+  ref.Uri = '';
+  ref.Transforms.Add(new XmlDsigEnvelopedSignatureTransform());
+  ref.Transforms.Add(new XmlDsigC14NTransform());
+  ref.DigestMethod.Algorithm = 'http://www.w3.org/2000/09/xmldsig#sha1';
+  signed.XmlSignature.SignedInfo.References.Add(ref);
 
-  // 5. Ensamblar la firma y añadirla ANTES del cierre del elemento raíz,
-  // SIN saltos de línea alrededor: el transform enveloped del SRI elimina la
-  // firma y el documento debe quedar EXACTAMENTE como se calculó el digest.
-  const signatureBlock = `<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="Signature1">${signedInfo}<ds:SignatureValue>${signatureValue}</ds:SignatureValue><ds:KeyInfo><ds:X509Data>${cadenaX509}</ds:X509Data></ds:KeyInfo></ds:Signature>`;
+  // KeyInfo con el certificado del firmante
+  signed.XmlSignature.KeyInfo = new KeyInfo();
+  signed.XmlSignature.KeyInfo.Add(new KeyInfoX509Data(new Uint8Array(certDer)));
 
-  return xml.replace(/<\/factura>/, `${signatureBlock}</factura>`);
+  // Firmar (XAdES agrega automáticamente SignedProperties con SigningTime HOY
+  // y SigningCertificate con digest SHA-1)
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  await signed.Sign({ name: 'RSASSA-PKCS1-v1_5' }, key, doc.documentElement as any, {
+    location: { reference: "//*[local-name(.)='factura']", action: 'append' } as any,
+    signingCertificate: { certificate: x509b64, digestAlgorithm: 'SHA-1' },
+  } as any);
+
+  // Serializar la firma e insertarla antes del cierre del elemento raíz
+  const firmaXml = new XMLSerializer().serializeToString(signed.XmlSignature.GetXml());
+  return xml.replace(/<\/factura>/, `${firmaXml}</factura>`);
 }
