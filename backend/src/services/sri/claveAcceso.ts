@@ -1,9 +1,15 @@
 /**
- * Generación de clave de acceso SRI (49 dígitos — formato vigente).
+ * Generación de clave de acceso SRI (49 dígitos — formato vigente 2025+).
  * Formato: fechaEmision(8) + tipoComprobante(2) + ruc(13) + ambiente(1)
- *          + serie(6) + secuencial(9) + codigoNumerico(9) + digitoVerificador(1)
- * NOTA: el SRI actualizó el esquema (factura 1.1.0 vigente) y la clave pasó
- * de 48 a 49 dígitos: el código numérico ahora tiene 9 dígitos (antes 8).
+ *          + serie(6) + secuencial(9) + codigoNumerico(8)
+ *          + tipoEmision(1) + digitoVerificador(1)
+ *
+ * NOTA IMPORTANTE: el SRI actualizó el esquema y la clave pasó de 48 a 49
+ * dígitos agregando el TIPO DE EMISIÓN (1 dígito) entre el código numérico
+ * (que SIGUE siendo de 8 dígitos) y el dígito verificador. Confirmado por el
+ * error real del SRI: "El tipo de emisión 2 contenido en la clave de acceso
+ * no corresponde al de la etiqueta 1" (leía el 9º dígito del código como
+ * tipo de emisión).
  */
 import { fechaEcuador } from './fechaEcuador';
 
@@ -15,8 +21,10 @@ export function generarClaveAcceso(params: {
   establecimiento: string; // 3 dígitos
   puntoEmision: string;    // 3 dígitos
   secuencial: number;      // número de factura
+  tipoEmision?: string;    // 1=normal (default), 2=indisponibilidad (contingencia)
 }): string {
   const { fechaEmision, tipoComprobante, ruc, ambiente, establecimiento, puntoEmision, secuencial } = params;
+  const tipoEmision = params.tipoEmision || '1';
 
   // Fecha SIEMPRE en zona horaria de Ecuador (el SRI valida contra su fecha local)
   const { dia, mes, anio } = fechaEcuador(fechaEmision);
@@ -24,9 +32,10 @@ export function generarClaveAcceso(params: {
 
   const serie = establecimiento + puntoEmision; // 6 dígitos
   const sec = String(secuencial).padStart(9, '0');
-  const codigoNumerico = String(Math.floor(Math.random() * 900000000) + 100000000); // 9 dígitos
+  const codigoNumerico = String(Math.floor(Math.random() * 90000000) + 10000000); // 8 dígitos
 
-  const base = fecha + tipoComprobante + ruc + ambiente + serie + sec + codigoNumerico; // 48 dígitos
+  // Base de 48 dígitos: ... + código(8) + tipoEmision(1)
+  const base = fecha + tipoComprobante + ruc + ambiente + serie + sec + codigoNumerico + tipoEmision;
   const digito = calcularDigitoVerificador(base);
 
   return base + digito; // 49 dígitos

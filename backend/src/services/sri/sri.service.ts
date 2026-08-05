@@ -60,7 +60,7 @@ export async function emitirFacturaElectronica(orderId: string): Promise<EmitInv
   });
   const sequential = seq.lastUsed;
 
-  // Clave de acceso
+  // Clave de acceso (49 dígitos, con tipo de emisión — formato vigente SRI)
   const claveAcceso = generarClaveAcceso({
     fechaEmision: order.createdAt,
     tipoComprobante: '01',
@@ -69,6 +69,7 @@ export async function emitirFacturaElectronica(orderId: string): Promise<EmitInv
     establecimiento: fiscal.establishmentCode || '001',
     puntoEmision: fiscal.emissionPointCode || '001',
     secuencial: sequential,
+    tipoEmision: '1', // 1=normal (debe coincidir con la etiqueta <tipoEmision> del XML)
   });
 
   // XML
