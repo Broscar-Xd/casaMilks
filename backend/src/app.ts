@@ -18,6 +18,7 @@ import { tableRoutes } from './routes/table.routes';
 import { supplierRoutes } from './routes/supplier.routes';
 import { signatureRoutes } from './routes/signature.routes';
 import { customerRoutes } from './routes/customer.routes';
+import { prisma } from './config/database';
 
 const app = express();
 
@@ -50,6 +51,19 @@ app.use('/api/tables', tableRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/signatures', signatureRoutes);
 app.use('/api/customers', customerRoutes);
+
+// TEMPORAL (solo diagnóstico — quitar después): descargar el último XML firmado
+app.get('/api/debug/last-xml', async (_req, res) => {
+  try {
+    const rec = await prisma.electronicReceipt.findFirst({ orderBy: { createdAt: 'desc' } });
+    if (!rec) { res.status(404).send('No hay comprobantes'); return; }
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="comprobante_${rec.sequential}.xml"`);
+    res.send(rec.xmlContent);
+  } catch (e: any) {
+    res.status(500).send('Error: ' + (e?.message || 'desconocido'));
+  }
+});
 
 // SPA fallback — cualquier ruta que no sea API sirve el index.html
 app.get('*', (_req, res) => {

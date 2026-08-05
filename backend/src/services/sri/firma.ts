@@ -131,8 +131,13 @@ export function firmarXML(xml: string, p12Base64: string, password: string): str
   signer.update(canonSignedInfo, 'utf8');
   const signatureValue = signer.sign(pem, 'base64');
 
-  // 4. KeyInfo con la CADENA COMPLETA de certificados (un elemento por cert)
-  const cadenaX509 = chain.map((c) => `<ds:X509Certificate>${certBase64(c)}</ds:X509Certificate>`).join('');
+  // 4. KeyInfo con el certificado del FIRMANTE (el primero del .p12).
+  // El jFirmador oficial del SRI incluye SOLO el certificado del titular en el
+  // KeyInfo; la cadena de la CA no va en el comprobante. Incluir los
+  // certificados de la CA dentro del KeyInfo puede causar
+  // "No tiene Cadena de Confianza Valida" en el SRI.
+  const certTitular = certBase64(chain[0]);
+  const cadenaX509 = `<ds:X509Certificate>${certTitular}</ds:X509Certificate>`;
 
   // 5. Ensamblar la firma y añadirla ANTES del cierre del elemento raíz,
   // SIN saltos de línea alrededor: el transform enveloped del SRI elimina la
