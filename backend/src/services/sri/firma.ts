@@ -112,6 +112,9 @@ export function firmarXML(xml: string, p12Base64: string, password: string): str
   // certificado (titular + CA intermedia + raíz), como genera el jFirmador.
   // El SRI necesita la cadena para validar la confianza del certificado.
   // El KeyInfo no forma parte de la firma, así que modificarlo NO invalida el SignatureValue.
+  // IMPORTANTE: el PEM de node-forge usa CRLF; hay que eliminar \r Y \n del
+  // base64 (un \r residual corrompe el certificado al decodificarlo y el SRI
+  // rechaza la firma con "No tiene Cadena de Confianza Valida").
   const cadenaX509 = chain
     .map(
       (c) =>
@@ -119,7 +122,7 @@ export function firmarXML(xml: string, p12Base64: string, password: string): str
           .certificateToPem(c)
           .replace(/-----BEGIN CERTIFICATE-----/, '')
           .replace(/-----END CERTIFICATE-----/, '')
-          .replace(/\n/g, '')}</ds:X509Certificate>`
+          .replace(/[\r\n]/g, '')}</ds:X509Certificate>`
     )
     .join('');
   const keyInfoCorrecto = `<ds:KeyInfo><ds:X509Data>${cadenaX509}</ds:X509Data></ds:KeyInfo>`;
