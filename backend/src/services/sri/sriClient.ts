@@ -37,9 +37,34 @@ const parser = new XMLParser({
 });
 
 // Agente HTTPS sin verificación estricta de certificados (requerido por el SRI).
-const sriAgent = new https.Agent({ rejectUnauthorized: false });
+// Sin keepAlive: cada petición usa una conexión nueva (los servidores del SRI
+// cierran conexiones reutilizadas, lo que provoca ECONNRESET).
+const sriAgent = new https.Agent({ rejectUnauthorized: false, keepAlive: false });
 
-function soapRequest(url: string, action: string, body: string): Promise<any> {
+const RETRYABLE_CODES = ['ECONNRESET', 'ECONNREFUSED', 'ECONNABORTED', 'ETIMEDOUT', 'EAI_AGAIN', 'EPIPE', 'socket hang up'];
+const MAX_RETRIES = 3;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Ejecuta la petición SOAP con reintentos ante errores de red transitorios. */
+async function soapRequest(url: string, action: string, body: string): Promise<any> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await singleRequest(url, action, body);
+    } catch (err: any) {
+      lastError = err;
+      const msg = err?.message || '';
+      const isNetwork = RETRYABLE_CODES.some((c) => msg.includes(c));
+      // Solo reintentar errores de red (NO errores SOAP del SRI: esos son definitivos)
+      if (!isNetwork || attempt === MAX_RETRIES) throw err;
+      await sleep(500 * Math.pow(2, attempt)); // 500ms, 1s, 2s
+    }
+  }
+  throw lastError;
+}
+
+function singleRequest(url: string, action: string, body: string): Promise<any> {
   const envelope = `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
   <soapenv:Header/>
