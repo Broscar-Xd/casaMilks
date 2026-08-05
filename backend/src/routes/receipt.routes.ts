@@ -10,4 +10,5 @@ receiptRoutes.use(authenticate, authorize('ADMIN'));
 receiptRoutes.get('/', receiptController.list);
 receiptRoutes.get('/:id/status', receiptController.checkStatus);
 receiptRoutes.get('/:id/xml', receiptController.getXml);
+receiptRoutes.get('/:id/pdf', receiptController.getPdf);
 receiptRoutes.post('/:id/resend', receiptController.resend);

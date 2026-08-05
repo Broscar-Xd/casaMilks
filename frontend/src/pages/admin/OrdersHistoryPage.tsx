@@ -3,7 +3,7 @@ import { useBranch } from '@/contexts/BranchContext';
 import { api } from '@/services/api';
 import { formatCurrency, getPaymentMethodLabel, getOrderStatusLabel } from '@/lib/utils';
 import toast from 'react-hot-toast';
-import { Search, Loader2, Eye, X, Filter } from 'lucide-react';
+import { Search, Loader2, Eye, X, Filter, FileText } from 'lucide-react';
 import { Pagination } from '@/components/ui/Pagination';
 import { usePagination } from '@/hooks/usePagination';
 import type { Order, ApiResponse, PaymentMethod } from '@/types';
@@ -62,6 +62,22 @@ export default function OrdersHistoryPage() {
       if (res.success && res.data) setSelectedOrder(res.data);
     } catch {
       toast.error('Error al cargar detalle');
+    }
+  };
+
+  const downloadNotaVenta = async (orderId: string) => {
+    try {
+      const res = await api.get<Response>(`/orders/${orderId}/pdf`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `nota_venta_${orderId.slice(0, 8)}.pdf`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Nota de venta descargada');
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al descargar la nota de venta');
     }
   };
 
@@ -183,9 +199,14 @@ export default function OrdersHistoryPage() {
                       )}
                     </td>
                     <td className="table-cell text-right">
-                      <button onClick={() => viewDetail(order.id)} className="btn-ghost p-1.5">
-                        <Eye size={16} />
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button onClick={() => downloadNotaVenta(order.id)} className="btn-ghost p-1.5" title="Descargar nota de venta">
+                          <FileText size={16} />
+                        </button>
+                        <button onClick={() => viewDetail(order.id)} className="btn-ghost p-1.5">
+                          <Eye size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -268,6 +289,12 @@ export default function OrdersHistoryPage() {
                   Cliente: <span className="font-medium text-surface-600">{selectedOrder.customerName}</span>
                 </div>
               )}
+
+              <div className="flex gap-2 pt-2 border-t border-surface-100">
+                <button onClick={() => downloadNotaVenta(selectedOrder.id)} className="btn-secondary flex-1 text-sm py-2">
+                  <FileText size={15} /> Descargar nota de venta
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -3,7 +3,7 @@ import { useBranch } from '@/contexts/BranchContext';
 import { api } from '@/services/api';
 import { formatCurrency } from '@/lib/utils';
 import toast from 'react-hot-toast';
-import { Search, Loader2, RefreshCw, CheckCircle2, XCircle, Clock, Eye, FileDown, X } from 'lucide-react';
+import { Search, Loader2, RefreshCw, CheckCircle2, XCircle, Clock, Eye, FileText, X } from 'lucide-react';
 import { Pagination } from '@/components/ui/Pagination';
 import { usePagination } from '@/hooks/usePagination';
 import type { ElectronicReceipt, ApiResponse } from '@/types';
@@ -77,16 +77,20 @@ export default function ReceiptsPage() {
     }
   };
 
-  const downloadXml = (receipt: ElectronicReceipt) => {
-    const xml = receipt.xmlAutorizado || receipt.xmlContent;
-    if (!xml) { toast.error('Esta factura no tiene XML'); return; }
-    const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `factura_${receipt.claveAcceso || receipt.sequential}.xml`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const downloadPdf = async (receipt: ElectronicReceipt) => {
+    try {
+      const res = await api.get<Response>(`/receipts/${receipt.id}/pdf`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `nota_venta_${receipt.claveAcceso || receipt.sequential}.pdf`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Nota de venta descargada');
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al descargar la nota de venta');
+    }
   };
 
   if (!currentBranch) {
@@ -174,11 +178,11 @@ export default function ReceiptsPage() {
                             <Eye size={15} className="text-cocoa-500" />
                           </button>
                           <button
-                            onClick={() => downloadXml(r)}
+                            onClick={() => downloadPdf(r)}
                             className="btn-ghost p-1.5 rounded-lg hover:bg-milk-100"
-                            title="Descargar XML"
+                            title="Descargar nota de venta"
                           >
-                            <FileDown size={15} className="text-cocoa-500" />
+                            <FileText size={15} className="text-cocoa-500" />
                           </button>
                           {canResend && (
                             <button
@@ -252,8 +256,8 @@ export default function ReceiptsPage() {
                 </div>
               )}
               <div className="flex gap-2 pt-2 border-t border-milk-100">
-                <button onClick={() => downloadXml(selected)} className="btn-secondary flex-1 text-sm py-2">
-                  <FileDown size={15} /> Descargar XML
+                <button onClick={() => downloadPdf(selected)} className="btn-secondary flex-1 text-sm py-2">
+                  <FileText size={15} /> Descargar nota de venta
                 </button>
                 {(selected.status === 'REJECTED' || selected.status === 'EMITTED' || selected.status === 'PENDING') && (
                   <button

@@ -4,6 +4,7 @@ import { generarClaveAcceso } from './claveAcceso';
 import { generarFacturaXML, mapPaymentMethodToSri } from './facturaXml';
 import { firmarXML, getCertInfo } from './firma';
 import { enviarRecepcion, esperarAutorizacion } from './sriClient';
+import { enviarFacturaPorCorreo } from '../mail.service';
 
 const AMBIENTE = process.env.SRI_AMBIENTE || '1'; // 1=pruebas, 2=producción
 
@@ -17,6 +18,10 @@ export interface EmitInvoiceResult {
   xmlFirmado?: string;
   /** XML autorizado devuelto por el SRI (si está autorizado) */
   xmlAutorizado?: string;
+  /** Estado del envío del correo al cliente (solo si hay email y está autorizado) */
+  emailEnviado?: boolean;
+  /** Error del envío de correo (si falló, no bloquea la venta) */
+  emailError?: string;
 }
 
 /**
@@ -174,6 +179,31 @@ export async function emitirFacturaElectronica(orderId: string): Promise<EmitInv
           authorizedAt: new Date(),
         },
       });
+
+      // Enviar correo de la factura autorizada al cliente (no bloquea la venta)
+      let emailEnviado: boolean | undefined;
+      let emailError: string | undefined;
+      if (order.invoiceEmail) {
+        const fechaStr = `${String(order.createdAt.getDate()).padStart(2, '0')}/${String(order.createdAt.getMonth() + 1).padStart(2, '0')}/${order.createdAt.getFullYear()}`;
+        const mailResult = await enviarFacturaPorCorreo({
+          to: order.invoiceEmail,
+          invoiceName: order.invoiceName || 'cliente',
+          numeroAutorizacion: autorizacion.numeroAutorizacion || '',
+          claveAcceso,
+          sequential: `${fiscal.establishmentCode || '001'}-${fiscal.emissionPointCode || '001'}-${String(sequential).padStart(9, '0')}`,
+          total: `$${Number(order.total).toFixed(2)}`,
+          fechaEmision: fechaStr,
+          branchId: order.branchId,
+        });
+        emailEnviado = mailResult.enviado;
+        emailError = mailResult.error;
+        if (mailResult.enviado) {
+          console.log(`📧 Factura sec ${sequential} enviada por correo a ${order.invoiceEmail}`);
+        } else {
+          console.warn(`⚠️ No se pudo enviar correo a ${order.invoiceEmail}: ${mailResult.error}`);
+        }
+      }
+
       return {
         claveAcceso,
         numeroAutorizacion: autorizacion.numeroAutorizacion,
@@ -182,6 +212,8 @@ export async function emitirFacturaElectronica(orderId: string): Promise<EmitInv
         sequential,
         xmlFirmado,
         xmlAutorizado: autorizacion.xmlAutorizado || undefined,
+        emailEnviado,
+        emailError,
       };
     }
 

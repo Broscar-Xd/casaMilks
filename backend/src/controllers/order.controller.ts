@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { orderService } from '../services/order.service';
 import { emitirFacturaElectronica } from '../services/sri/sri.service';
+import { generarNotaVentaPdf } from '../services/receiptPdf.service';
 import { AuthenticatedRequest } from '../types';
 
 const p = (params: Record<string, string | string[]>, key: string): string =>
@@ -83,6 +84,16 @@ export const orderController = {
     try {
       const result = await emitirFacturaElectronica(p(req.params, 'id'));
       res.json({ success: true, data: result });
+    } catch (error) { next(error); }
+  },
+
+  /** GET /api/orders/:id/pdf — descarga la nota de venta del pedido (con o sin factura) */
+  getPdf: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const pdf = await generarNotaVentaPdf({ orderId: p(req.params, 'id') });
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="nota_venta_${req.params.id.slice(0, 8)}.pdf"`);
+      res.send(pdf);
     } catch (error) { next(error); }
   },
 };

@@ -55,7 +55,7 @@ export default function POSPage() {
   const [showInvoiceForm, setShowInvoiceForm] = useState(false);
   const [invoiceOrderRef, setInvoiceOrderRef] = useState<any>(null);
   const [emittingInvoice, setEmittingInvoice] = useState(false);
-  const [invoiceResult, setInvoiceResult] = useState<{ claveAcceso?: string; numeroAutorizacion?: string; estado?: string; mensajes?: Array<{ identificador: string; mensaje: string; informacionAdicional?: string }> } | null>(null);
+  const [invoiceResult, setInvoiceResult] = useState<{ claveAcceso?: string; numeroAutorizacion?: string; estado?: string; mensajes?: Array<{ identificador: string; mensaje: string; informacionAdicional?: string }>; emailEnviado?: boolean; emailError?: string } | null>(null);
   const [invoiceData, setInvoiceData] = useState({
     invoiceName: '',
     invoiceDocId: '',
@@ -1050,6 +1050,16 @@ export default function POSPage() {
                         <div className="text-xs text-emerald-700 space-y-0.5">
                           <p className="break-all"><span className="font-medium">Clave:</span> {invoiceResult.claveAcceso}</p>
                           <p className="break-all"><span className="font-medium">Autorización:</span> {invoiceResult.numeroAutorizacion}</p>
+                          {invoiceResult.emailEnviado === true && (
+                            <p className="flex items-center gap-1 text-emerald-600 font-medium">
+                              <CheckCircle size={12} /> Correo enviado al cliente
+                            </p>
+                          )}
+                          {invoiceResult.emailEnviado === false && (
+                            <p className="text-[10px] text-amber-600">
+                              ⚠️ No se pudo enviar el correo{invoiceResult.emailError ? `: ${invoiceResult.emailError}` : ''}
+                            </p>
+                          )}
                         </div>
                       </div>
                     ) : (
@@ -1114,6 +1124,8 @@ export default function POSPage() {
                               numeroAutorizacion: emitRes.data.numeroAutorizacion,
                               estado: emitRes.data.estado,
                               mensajes: emitRes.data.mensajes || [],
+                              emailEnviado: emitRes.data.emailEnviado,
+                              emailError: emitRes.data.emailError,
                             });
                             if (emitRes.data.estado === 'AUTORIZADO') {
                               toast.success('Factura electrónica AUTORIZADA por el SRI');

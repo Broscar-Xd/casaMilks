@@ -19,6 +19,7 @@ orderRoutes.post('/takeout', validate(createTakeoutOrderSchema), orderController
 
 // CRUD
 orderRoutes.get('/', orderController.listByBranch);
+orderRoutes.get('/:id/pdf', orderController.getPdf);
 orderRoutes.get('/:id', orderController.getById);
 orderRoutes.post('/', validate(createTableOrderSchema), orderController.create);
 orderRoutes.post('/:id/items', validate(addItemsToOrderSchema), orderController.addItems);
