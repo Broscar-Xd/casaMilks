@@ -5,6 +5,7 @@ import { branchRepository } from '../repositories/branch.repository';
 import { prisma } from '../config/database';
 import { AppError } from '../middlewares/errorHandler';
 import { CreateTableOrderInput, CreateTakeoutOrderInput, AddItemsToOrderInput, CloseOrderInput } from '../validators/order.validator';
+import { startOfEcuadorDay, endOfEcuadorDay } from '../utils/date';
 
 export const orderService = {
   getById: async (id: string) => {
@@ -19,10 +20,11 @@ export const orderService = {
   },
 
   listByBranch: (branchId: string, dateFrom?: string, dateTo?: string) => {
-    // dateFrom → inicio del día (00:00:00.000); dateTo → fin del día (23:59:59.999)
-    // Sin esto, filtrar por un día excluye todo lo posterior a la medianoche.
-    const parsedDateFrom = dateFrom ? new Date(`${dateFrom}T00:00:00.000`) : undefined;
-    const parsedDateTo = dateTo ? new Date(`${dateTo}T23:59:59.999`) : undefined;
+    // dateFrom → inicio del día (00:00:00.000) y dateTo → fin (23:59:59.999),
+    // ambos en hora de Ecuador (UTC-5). Sin esto, filtrar por un día
+    // excluye todo lo posterior a las 19:00 (server en UTC).
+    const parsedDateFrom = dateFrom ? startOfEcuadorDay(dateFrom) : undefined;
+    const parsedDateTo = dateTo ? endOfEcuadorDay(dateTo) : undefined;
     return orderRepository.listByBranch(branchId, parsedDateFrom, parsedDateTo);
   },
 

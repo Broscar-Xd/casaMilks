@@ -2,14 +2,16 @@ import { useState } from 'react';
 import { useBranch } from '@/contexts/BranchContext';
 import { api } from '@/services/api';
 import { formatCurrency, getPaymentMethodLabel } from '@/lib/utils';
+import { todayLocalDate } from '@/lib/date';
 import toast from 'react-hot-toast';
 import { BarChart3, Download, Loader2, Search } from 'lucide-react';
 import type { ApiResponse } from '@/types';
 
 export default function ReportsPage() {
   const { currentBranch } = useBranch();
-  const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
-  const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
+  // Por defecto: HOY en la zona local (no la fecha UTC)
+  const [dateFrom, setDateFrom] = useState(todayLocalDate());
+  const [dateTo, setDateTo] = useState(todayLocalDate());
   const [loading, setLoading] = useState(false);
   const [salesByProduct, setSalesByProduct] = useState<any[]>([]);
   const [salesByTimeSlot, setSalesByTimeSlot] = useState<any[]>([]);

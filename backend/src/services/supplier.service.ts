@@ -1,17 +1,19 @@
 import { supplierRepository } from '../repositories/supplier.repository';
 import { CreateSupplierPaymentInput } from '../validators/supplier.validator';
+import { startOfEcuadorDay, endOfEcuadorDay } from '../utils/date';
 
 export const supplierService = {
   list: async (branchId: string, dateFrom?: string, dateTo?: string, supplierName?: string) => {
-    const parsedFrom = dateFrom ? new Date(dateFrom) : undefined;
-    const parsedTo = dateTo ? new Date(dateTo) : undefined;
+    const parsedFrom = dateFrom ? startOfEcuadorDay(dateFrom) : undefined;
+    const parsedTo = dateTo ? endOfEcuadorDay(dateTo) : undefined;
     return supplierRepository.list(branchId, parsedFrom, parsedTo, supplierName);
   },
 
   /** Total pagado a proveedores en el día, con desglose efectivo/transferencia (para el dashboard). */
   sumByDate: async (branchId: string, date: string) => {
-    const start = new Date(`${date}T00:00:00.000`);
-    const end = new Date(`${date}T23:59:59.999`);
+    // Día completo en Ecuador: 00:00:00.000 → 23:59:59.999 (UTC-5)
+    const start = startOfEcuadorDay(date);
+    const end = endOfEcuadorDay(date);
     const result = await supplierRepository.sumByDate(branchId, start, end);
     return {
       total: Number(result._sum?.total || 0),

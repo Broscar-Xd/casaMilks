@@ -3,6 +3,7 @@ import { reportRepository } from '../repositories/report.repository';
 import { prisma } from '../config/database';
 import { AppError } from '../middlewares/errorHandler';
 import { CloseDayInput } from '../validators/close.validator';
+import { startOfEcuadorDay, ecuadorDateStr } from '../utils/date';
 
 export const closeService = {
   /**
@@ -11,8 +12,10 @@ export const closeService = {
    * Solo se puede cerrar una vez por día por local.
    */
   execute: async (input: CloseDayInput, userId: string) => {
-    const closeDate = input.closeDate ? new Date(input.closeDate) : new Date();
-    closeDate.setHours(0, 0, 0, 0);
+    // El cierre queda registrado al día de Ecuador (UTC-5), no al del servidor (UTC)
+    const closeDate = startOfEcuadorDay(
+      ecuadorDateStr(input.closeDate ? new Date(input.closeDate) : new Date())
+    );
     const nextDay = new Date(closeDate);
     nextDay.setDate(nextDay.getDate() + 1);
 
@@ -81,7 +84,7 @@ export const closeService = {
       where: {
         branchId_closeDate: {
           branchId,
-          closeDate: new Date(date),
+          closeDate: startOfEcuadorDay(date),
         },
       },
     }),

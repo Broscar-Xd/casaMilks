@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/services/api';
 import { formatCurrency } from '@/lib/utils';
+import { todayLocalDate } from '@/lib/date';
 import { useBranch } from '@/contexts/BranchContext';
 import toast from 'react-hot-toast';
 import { Loader2, TrendingUp, ShoppingCart, DollarSign, Receipt, Wallet, PiggyBank } from 'lucide-react';
@@ -20,7 +21,7 @@ export default function DashboardPage() {
 
     const fetchData = async () => {
       try {
-        const today = new Date().toISOString().split('T')[0];
+        const today = todayLocalDate();
         const [ordersRes, closeRes, supplierRes] = await Promise.all([
           api.get<ApiResponse<Order[]>>(`/orders?branchId=${currentBranch.id}&dateFrom=${today}`),
           api.get<ApiResponse<DailyClose>>(`/closes/by-date?branchId=${currentBranch.id}&date=${today}`),

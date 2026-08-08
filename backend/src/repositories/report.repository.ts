@@ -14,12 +14,7 @@ export const reportRepository = {
       _sum: { quantity: true, subtotal: true },
     }),
 
-  salesByTimeSlot: async (branchId: string, date: Date) => {
-    const start = new Date(date);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(date);
-    end.setHours(23, 59, 59, 999);
-
+  salesByTimeSlot: async (branchId: string, start: Date, end: Date) => {
     const orders = await prisma.order.findMany({
       where: {
         branchId,
@@ -32,8 +27,15 @@ export const reportRepository = {
     const slots: Record<number, { total: number; count: number }> = {};
     for (let i = 0; i < 24; i++) slots[i] = { total: 0, count: 0 };
 
+    // Hora en ECUADOR (el servidor corre en UTC y getHours() daría la hora equivocada)
+    const hourFormatter = new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit',
+      hour12: false,
+      timeZone: 'America/Guayaquil',
+    });
+
     for (const order of orders) {
-      const hour = order.createdAt.getHours();
+      const hour = parseInt(hourFormatter.format(order.createdAt), 10) % 24;
       slots[hour].total += Number(order.total);
       slots[hour].count += 1;
     }

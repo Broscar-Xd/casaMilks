@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useBranch } from '@/contexts/BranchContext';
 import { api } from '@/services/api';
 import { formatCurrency } from '@/lib/utils';
+import { todayLocalDate } from '@/lib/date';
 import toast from 'react-hot-toast';
 import { Plus, Search, Loader2, X, Download, Banknote, Smartphone } from 'lucide-react';
 import { Pagination } from '@/components/ui/Pagination';
@@ -23,7 +24,9 @@ export default function SuppliersPage() {
   const { currentBranch } = useBranch();
   const [payments, setPayments] = useState<SupplierPayment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().split('T')[0]);
+  // Por defecto: HOY en la zona local (no la fecha UTC, que en Ecuador
+  // después de las 19:00 ya sería mañana)
+  const [dateFrom, setDateFrom] = useState(() => todayLocalDate());
   const [dateTo, setDateTo] = useState('');
   const [supplierFilter, setSupplierFilter] = useState('');
   const [suppliers, setSuppliers] = useState<string[]>([]);
@@ -107,7 +110,7 @@ export default function SuppliersPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `pagos-proveedores-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `pagos-proveedores-${todayLocalDate()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Archivo descargado');

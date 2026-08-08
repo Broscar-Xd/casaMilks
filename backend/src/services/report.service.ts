@@ -1,22 +1,21 @@
 import { reportRepository } from '../repositories/report.repository';
 import { prisma } from '../config/database';
 import ExcelJS from 'exceljs';
+import { startOfEcuadorDay, endOfEcuadorDay } from '../utils/date';
 
 /**
- * Convierte "YYYY-MM-DD" al inicio del día (00:00:00.000).
+ * Convierte "YYYY-MM-DD" al inicio del día (00:00:00.000) en Ecuador (UTC-5).
  */
 function startOfDay(dateStr: string): Date {
-  const d = new Date(`${dateStr}T00:00:00.000`);
-  return d;
+  return startOfEcuadorDay(dateStr);
 }
 
 /**
- * Convierte "YYYY-MM-DD" al FIN del día (23:59:59.999).
+ * Convierte "YYYY-MM-DD" al FIN del día (23:59:59.999) en Ecuador (UTC-5).
  * Sin esto, el filtro lte con medianoche excluye todo el día.
  */
 function endOfDay(dateStr: string): Date {
-  const d = new Date(`${dateStr}T23:59:59.999`);
-  return d;
+  return endOfEcuadorDay(dateStr);
 }
 
 export const reportService = {
@@ -24,7 +23,7 @@ export const reportService = {
     reportRepository.salesByProduct(branchId, startOfDay(dateFrom), endOfDay(dateTo)),
 
   salesByTimeSlot: (branchId: string, date: string) =>
-    reportRepository.salesByTimeSlot(branchId, new Date(`${date}T12:00:00`)),
+    reportRepository.salesByTimeSlot(branchId, startOfEcuadorDay(date), endOfEcuadorDay(date)),
 
   dailySummary: (branchId: string, dateFrom: string, dateTo: string) =>
     reportRepository.dailySummary(branchId, startOfDay(dateFrom), endOfDay(dateTo)),
