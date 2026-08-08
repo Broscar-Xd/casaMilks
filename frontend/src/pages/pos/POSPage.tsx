@@ -686,26 +686,13 @@ export default function POSPage() {
               </div>
               <input type="text" placeholder="Buscar producto..." className="input mb-2 py-2 text-sm"
                 value={search} onChange={e => setSearch(e.target.value)} />
-              <div className="flex gap-1.5 overflow-x-auto pb-2">
-                <button onClick={() => setSelectedCategory(null)}
-                  className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-150 ${!selectedCategory ? 'bg-cocoa-600 text-milk-50 shadow-md shadow-cocoa-600/25' : 'bg-milk-100 text-cocoa-500 hover:bg-milk-200'}`}>Todos</button>
-                {categories.map(cat => (
-                  <button key={cat.id} onClick={() => setSelectedCategory(cat.id)}
-                    className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-150 ${selectedCategory === cat.id ? 'bg-cocoa-600 text-milk-50 shadow-md shadow-cocoa-600/25' : 'bg-milk-100 text-cocoa-500 hover:bg-milk-200'}`}>{cat.name}</button>
-                ))}
-              </div>
-              <div className="flex-1 overflow-y-auto min-w-0">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                  {filteredProducts.map(product => (
-                    <button key={product.id} onClick={() => addToCart(product)}
-                      className="rounded-xl border border-milk-200/90 bg-white p-2.5 text-left hover:border-cocoa-300 hover:shadow-md hover:shadow-cocoa-900/10 hover:-translate-y-0.5 active:scale-95 flex flex-col transition-all duration-150">
-                      <div className="flex items-center justify-center rounded-lg bg-gradient-to-br from-milk-100 to-milk-200 mb-1.5 h-12"><span className="text-xl">🥛</span></div>
-                      <h3 className="text-xs font-medium text-cocoa-900 leading-tight">{product.name}</h3>
-                      <p className="text-xs font-bold text-cocoa-600 mt-0.5">{formatCurrency(Number(product.price))}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <PosProductPicker
+                categories={categories}
+                selectedCategory={selectedCategory}
+                onSelectCategory={setSelectedCategory}
+                products={filteredProducts}
+                onAddProduct={addToCart}
+              />
             </div>
             <div className="w-full sm:w-72 flex flex-col bg-milk-50/80 rounded-2xl border border-milk-200/90 shrink-0 max-h-64 sm:max-h-[70vh]">
               <div className="border-b border-milk-200/70 px-4 py-2.5 shrink-0"><h3 className="text-sm font-semibold text-cocoa-900">Pedido</h3></div>
@@ -767,18 +754,13 @@ export default function POSPage() {
               </div>
               <input type="text" placeholder="Buscar producto..." className="input mb-2 py-2 text-sm"
                 value={search} onChange={e => setSearch(e.target.value)} />
-              <div className="flex-1 overflow-y-auto">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                  {filteredProducts.map(product => (
-                    <button key={product.id} onClick={() => addToCart(product)}
-                      className="rounded-xl border border-milk-200/90 bg-white p-2.5 text-left hover:border-cocoa-300 hover:shadow-md hover:shadow-cocoa-900/10 hover:-translate-y-0.5 active:scale-95 flex flex-col transition-all duration-150">
-                      <div className="flex items-center justify-center rounded-lg bg-gradient-to-br from-milk-100 to-milk-200 mb-1.5 h-12"><span className="text-xl">🥛</span></div>
-                      <h3 className="text-xs font-medium text-cocoa-900 leading-tight">{product.name}</h3>
-                      <p className="text-xs font-bold text-cocoa-600 mt-0.5">{formatCurrency(Number(product.price))}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <PosProductPicker
+                categories={categories}
+                selectedCategory={selectedCategory}
+                onSelectCategory={setSelectedCategory}
+                products={filteredProducts}
+                onAddProduct={addToCart}
+              />
             </div>
             <div className="w-full sm:w-72 flex flex-col bg-milk-50/80 rounded-2xl border border-milk-200/90 shrink-0 max-h-64 sm:max-h-[70vh]">
               <div className="border-b border-milk-200/70 px-4 py-2.5 shrink-0"><h3 className="text-sm font-semibold text-cocoa-900">Nuevos productos</h3></div>
@@ -1328,9 +1310,62 @@ function StatusLegend({ color, label }: { color: string; label: string }) {
   return <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-milk-200/80 text-[11px] font-medium text-cocoa-400 shadow-sm"><div className={`w-2.5 h-2.5 rounded-full ${color} shadow-sm`} />{label}</div>;
 }
 
+/**
+ * Selector de productos con sidebar de categorías a la izquierda (scrolleable)
+ * y productos a la derecha en columnas de 2. Responsivo para teléfono.
+ */
+function PosProductPicker({ categories, selectedCategory, onSelectCategory, products, onAddProduct }: {
+  categories: Category[];
+  selectedCategory: string | null;
+  onSelectCategory: (id: string | null) => void;
+  products: Product[];
+  onAddProduct: (p: Product) => void;
+}) {
+  return (
+    <div className="flex flex-1 min-h-0 gap-2">
+      {/* Sidebar de categorías */}
+      <div className="w-20 sm:w-32 shrink-0 overflow-y-auto rounded-xl border border-milk-200/80 bg-milk-50/70 p-1.5 space-y-1">
+        <button
+          onClick={() => onSelectCategory(null)}
+          className={`w-full text-left rounded-lg px-2 py-2 text-[11px] sm:text-xs font-medium transition-all duration-150 ${!selectedCategory ? 'bg-cocoa-600 text-milk-50 shadow-sm' : 'text-cocoa-500 hover:bg-milk-100'}`}
+        >
+          Todos
+        </button>
+        {categories.map(cat => (
+          <button
+            key={cat.id}
+            onClick={() => onSelectCategory(cat.id)}
+            className={`w-full text-left rounded-lg px-2 py-2 text-[11px] sm:text-xs font-medium transition-all duration-150 truncate ${selectedCategory === cat.id ? 'bg-cocoa-600 text-milk-50 shadow-sm' : 'text-cocoa-500 hover:bg-milk-100'}`}
+          >
+            {cat.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Productos en 2 columnas */}
+      <div className="flex-1 overflow-y-auto min-w-0 pr-0.5">
+        {products.length === 0 ? (
+          <p className="text-xs text-cocoa-300 text-center py-8">Sin productos en esta categoría</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {products.map(product => (
+              <button key={product.id} onClick={() => onAddProduct(product)}
+                className="rounded-xl border border-milk-200/90 bg-white p-2.5 text-left hover:border-cocoa-300 hover:shadow-md hover:shadow-cocoa-900/10 hover:-translate-y-0.5 active:scale-95 flex flex-col transition-all duration-150">
+                <div className="flex items-center justify-center rounded-lg bg-gradient-to-br from-milk-100 to-milk-200 mb-1.5 h-12"><span className="text-xl">🥛</span></div>
+                <h3 className="text-xs font-medium text-cocoa-900 leading-tight line-clamp-2">{product.name}</h3>
+                <p className="text-xs font-bold text-cocoa-600 mt-0.5">{formatCurrency(Number(product.price))}</p>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TableModal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="modal-overlay p-2 sm:p-4" onClick={onClose}>
+    <div className="modal-overlay p-2 sm:p-4" onClick={(e) => e.stopPropagation()}>
       <div className="w-full max-w-5xl h-[90vh] sm:h-[85vh] modal-content flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-milk-200/70 px-6 py-4 shrink-0 bg-gradient-to-r from-milk-50/60 to-transparent rounded-t-3xl">
           <h2 className="text-base font-semibold text-cocoa-900 flex items-center gap-2.5">

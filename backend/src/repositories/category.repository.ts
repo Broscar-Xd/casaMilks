@@ -4,12 +4,12 @@ export const categoryRepository = {
   list: () =>
     prisma.category.findMany({
       where: { active: true },
-      orderBy: { name: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     }),
 
   listAll: () =>
     prisma.category.findMany({
-      orderBy: { name: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     }),
 
   findById: (id: string) =>
@@ -28,10 +28,10 @@ export const categoryRepository = {
       },
     }),
 
-  create: (data: { name: string; description?: string; isCombo?: boolean }) =>
+  create: (data: { name: string; description?: string; isCombo?: boolean; sortOrder?: number }) =>
     prisma.category.create({ data }),
 
-  update: (id: string, data: { name?: string; description?: string; active?: boolean; isCombo?: boolean }) =>
+  update: (id: string, data: { name?: string; description?: string; active?: boolean; isCombo?: boolean; sortOrder?: number }) =>
     prisma.category.update({ where: { id }, data }),
 
   // Combo lines

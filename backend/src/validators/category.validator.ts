@@ -4,6 +4,7 @@ export const createCategorySchema = z.object({
   name: z.string().min(2, 'Nombre de categoría requerido'),
   description: z.string().optional(),
   isCombo: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).default(0),
 });
 
 export const updateCategorySchema = z.object({
@@ -11,6 +12,7 @@ export const updateCategorySchema = z.object({
   description: z.string().optional(),
   active: z.boolean().optional(),
   isCombo: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).optional(),
 });
 
 export const comboLineSchema = z.object({

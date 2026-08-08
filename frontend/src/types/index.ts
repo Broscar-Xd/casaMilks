@@ -75,6 +75,7 @@ export interface Category {
   description: string | null;
   active: boolean;
   isCombo?: boolean;
+  sortOrder?: number;
   comboLines?: ComboLine[];
 }
 

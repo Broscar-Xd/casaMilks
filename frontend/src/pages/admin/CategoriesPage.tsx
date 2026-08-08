@@ -11,7 +11,7 @@ export default function CategoriesPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
-  const [form, setForm] = useState({ name: '', description: '', isCombo: false });
+  const [form, setForm] = useState({ name: '', description: '', isCombo: false, sortOrder: 0 });
 
   // Combo configuration
   const [comboLines, setComboLines] = useState<ComboLine[]>([]);
@@ -78,14 +78,14 @@ export default function CategoriesPage() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: '', description: '', isCombo: false });
+    setForm({ name: '', description: '', isCombo: false, sortOrder: categories.length });
     setComboLines([]);
     setShowModal(true);
   };
 
   const openEdit = async (cat: Category) => {
     setEditing(cat);
-    setForm({ name: cat.name, description: cat.description || '', isCombo: cat.isCombo || false });
+    setForm({ name: cat.name, description: cat.description || '', isCombo: cat.isCombo || false, sortOrder: cat.sortOrder ?? 0 });
     setComboLines([]);
     if (cat.isCombo) {
       await fetchComboLines(cat.id);
@@ -181,6 +181,7 @@ export default function CategoriesPage() {
         <table className="w-full text-sm">
           <thead className="bg-surface-50/80">
             <tr>
+              <th className="table-header w-14 text-center">Sec.</th>
               <th className="table-header">Nombre</th>
               <th className="table-header">Descripción</th>
               <th className="table-header text-center">Tipo</th>
@@ -191,6 +192,7 @@ export default function CategoriesPage() {
           <tbody className="divide-y divide-surface-100">
             {paginatedItems.map((cat) => (
               <tr key={cat.id} className="table-row">
+                <td className="table-cell text-center font-mono text-xs text-cocoa-500">{cat.sortOrder ?? 0}</td>
                 <td className="table-cell font-medium text-surface-900">{cat.name}</td>
                 <td className="table-cell text-surface-400">{cat.description || '—'}</td>
                 <td className="table-cell text-center">
@@ -230,6 +232,12 @@ export default function CategoriesPage() {
               <div>
                 <label className="label">Descripción</label>
                 <textarea className="input" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Secuencial (orden en el POS)</label>
+                <input type="number" min={0} className="input" value={form.sortOrder}
+                  onChange={(e) => setForm({ ...form, sortOrder: parseInt(e.target.value) || 0 })} />
+                <p className="mt-1 text-[10px] text-cocoa-400">Las categorías se muestran de menor a mayor en el POS.</p>
               </div>
 
               {/* Toggle isCombo */}

@@ -1,20 +1,71 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBranch } from '@/contexts/BranchContext';
 import { api } from '@/services/api';
 import toast from 'react-hot-toast';
-import { Clock, ChefHat, Loader2, CheckCircle } from 'lucide-react';
+import { Clock, ChefHat, Loader2, CheckCircle, BellRing } from 'lucide-react';
 import type { KitchenSend, ApiResponse } from '@/types';
+
+/** Suena una campana (ding-dong) usando Web Audio API — sin archivo externo. */
+function playBell() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    // Nota 1 (E5 ~659Hz)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.value = 659.25;
+    gain1.gain.setValueAtTime(0.001, now);
+    gain1.gain.exponentialRampToValueAtTime(0.5, now + 0.02);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+    osc1.connect(gain1).connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.7);
+
+    // Nota 2 (C6 ~1046Hz) — la campana "ding"
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.value = 1046.5;
+    gain2.gain.setValueAtTime(0.001, now + 0.25);
+    gain2.gain.exponentialRampToValueAtTime(0.4, now + 0.27);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
+    osc2.connect(gain2).connect(ctx.destination);
+    osc2.start(now + 0.25);
+    osc2.stop(now + 1.1);
+  } catch {
+    /* audio no disponible: silencioso */
+  }
+}
 
 export default function KitchenPage() {
   const { currentBranch } = useBranch();
   const [sends, setSends] = useState<KitchenSend[]>([]);
   const [loading, setLoading] = useState(true);
+  // Referencia para detectar pedidos NUEVOS (campana solo cuando llega uno)
+  const knownIds = useRef<Set<string>>(new Set());
 
   const fetchSends = useCallback(async () => {
     if (!currentBranch) return;
     try {
       const res = await api.get<ApiResponse<KitchenSend[]>>(`/orders/kitchen?branchId=${currentBranch.id}`);
-      if (res.success && res.data) setSends(res.data);
+      if (res.success && res.data) {
+        // En la primera carga solo registramos los IDs (sin sonar la campana)
+        const isFirstLoad = knownIds.current.size === 0;
+        const newSends = res.data.filter((s) => !knownIds.current.has(s.id));
+        if (!isFirstLoad && newSends.length > 0) {
+          playBell();
+          newSends.forEach((s) => {
+            const mesa = s.order?.table?.name || 'Para llevar';
+            toast(`🔔 ¡Nuevo pedido a cocina! — ${mesa}`, { duration: 5000, icon: '🔔' });
+          });
+        }
+        // Actualizar el set de IDs conocidos (solo pendientes)
+        knownIds.current = new Set(res.data.map((s) => s.id));
+        setSends(res.data);
+      }
     } catch { /* silent */ }
     finally { setLoading(false); }
   }, [currentBranch]);
