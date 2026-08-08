@@ -275,28 +275,19 @@ async function sendToKitchen(orderId: string, items: Array<{ productId: string; 
   });
 
   const prepMap = new Map(products.map(p => [p.id, p.requiresPreparation]));
+  // Cada item lleva sus propias selecciones de combo, así la cocina las
+  // renderiza anidadas debajo de su combo padre.
   const kitchenItems = items
     .filter(i => prepMap.get(i.productId) !== false)
-    .map(i => ({ productId: i.productId, quantity: i.quantity }));
+    .map(i => ({
+      productId: i.productId,
+      quantity: i.quantity,
+      ...(i.comboSelections && i.comboSelections.length > 0
+        ? { comboSelections: i.comboSelections.map(sel => ({ ...sel, quantity: i.quantity })) }
+        : {}),
+    }));
 
   if (kitchenItems.length === 0) return;
 
-  // Collect combo selections for items going to kitchen
-  const kitchenComboItems: Array<{ productId: string; productName: string; quantity: number; lineLabel?: string | null }> = [];
-  for (const item of items) {
-    if (prepMap.get(item.productId) === false) continue;
-    if (item.comboSelections && item.comboSelections.length > 0) {
-      for (const sel of item.comboSelections) {
-        kitchenComboItems.push({
-          productId: sel.productId,
-          productName: sel.productName,
-          // Cantidad del combo multiplicada (x2 desayunos = x2 de cada selección)
-          quantity: item.quantity,
-          lineLabel: sel.lineLabel || null,
-        });
-      }
-    }
-  }
-
-  await orderRepository.createKitchenSend(orderId, kitchenItems, kitchenComboItems);
+  await orderRepository.createKitchenSend(orderId, kitchenItems);
 }

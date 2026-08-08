@@ -53,8 +53,12 @@ export const orderRepository = {
         status: 'PENDING',
       },
       include: {
-        items: { include: { product: true } },
-        comboItems: { include: { product: { select: { id: true, name: true } } } },
+        items: {
+          include: {
+            product: true,
+            comboItems: { include: { product: { select: { id: true, name: true } } } },
+          },
+        },
         order: { select: { id: true, tableId: true, table: { select: { name: true } }, notes: true, createdAt: true } },
       },
       orderBy: { createdAt: 'asc' },
@@ -102,16 +106,45 @@ export const orderRepository = {
       return created;
     }),
 
-  createKitchenSend: (orderId: string, items: Array<{ productId: string; quantity: number }>, comboItems?: Array<{ productId: string; productName: string; quantity: number; lineLabel?: string | null }>) =>
-    prisma.kitchenSend.create({
-      data: {
-        orderId,
-        items: { create: items },
-        ...(comboItems && comboItems.length > 0
-          ? { comboItems: { create: comboItems.map(ci => ({ productId: ci.productId, productName: ci.productName, quantity: ci.quantity, lineLabel: ci.lineLabel })) } }
-          : {}),
-      },
-      include: { items: { include: { product: true } }, comboItems: { include: { product: { select: { id: true, name: true } } } } },
+  createKitchenSend: (orderId: string, items: Array<{ productId: string; quantity: number; comboSelections?: Array<{ productId: string; productName: string; quantity?: number; lineLabel?: string | null }> }>) =>
+    prisma.$transaction(async (tx) => {
+      const send = await tx.kitchenSend.create({
+        data: { orderId },
+      });
+      // Crear items uno a uno para capturar sus IDs y ligar los combos a su item padre
+      const createdItems: Array<{ id: string }> = [];
+      for (const item of items) {
+        createdItems.push(await tx.kitchenSendItem.create({
+          data: { sendId: send.id, productId: item.productId, quantity: item.quantity },
+        }));
+      }
+      if (items.some(i => i.comboSelections && i.comboSelections.length > 0)) {
+        for (let idx = 0; idx < items.length; idx++) {
+          const item = items[idx];
+          if (!item.comboSelections || item.comboSelections.length === 0) continue;
+          await tx.kitchenSendCombo.createMany({
+            data: item.comboSelections.map(sel => ({
+              kitchenSendId: send.id,
+              kitchenSendItemId: createdItems[idx].id,
+              productId: sel.productId,
+              productName: sel.productName,
+              quantity: sel.quantity || item.quantity,
+              lineLabel: sel.lineLabel || null,
+            })),
+          });
+        }
+      }
+      return tx.kitchenSend.findUnique({
+        where: { id: send.id },
+        include: {
+          items: {
+            include: {
+              product: true,
+              comboItems: { include: { product: { select: { id: true, name: true } } } },
+            },
+          },
+        },
+      });
     }),
 
   markKitchenSendReady: (sendId: string) =>

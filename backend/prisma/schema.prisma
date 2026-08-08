@@ -234,17 +234,20 @@ model OrderItemCombo {
 
 /// Items enviados a cocina que pertenecen a un combo
 model KitchenSendCombo {
-  id              String   @id @default(uuid())
-  kitchenSendId   String   @map("kitchen_send_id")
-  productId       String   @map("product_id")
-  productName     String   @map("product_name")
-  quantity        Int      @default(1)
-  lineLabel       String?  @map("line_label")
+  id                String   @id @default(uuid())
+  kitchenSendId     String   @map("kitchen_send_id")
+  kitchenSendItemId String?  @map("kitchen_send_item_id")
+  productId         String   @map("product_id")
+  productName       String   @map("product_name")
+  quantity          Int      @default(1)
+  lineLabel         String?  @map("line_label")
 
-  kitchenSend KitchenSend @relation(fields: [kitchenSendId], references: [id], onDelete: Cascade)
-  product     Product     @relation(fields: [productId], references: [id])
+  kitchenSend     KitchenSend     @relation(fields: [kitchenSendId], references: [id], onDelete: Cascade)
+  kitchenSendItem KitchenSendItem? @relation(fields: [kitchenSendItemId], references: [id], onDelete: Cascade)
+  product         Product         @relation(fields: [productId], references: [id])
 
   @@index([kitchenSendId])
+  @@index([kitchenSendItemId])
   @@map("kitchen_send_combos")
 }
 
@@ -458,8 +461,9 @@ model KitchenSendItem {
   productId String @map("product_id")
   quantity  Int
 
-  send    KitchenSend @relation(fields: [sendId], references: [id], onDelete: Cascade)
-  product Product     @relation(fields: [productId], references: [id])
+  send       KitchenSend        @relation(fields: [sendId], references: [id], onDelete: Cascade)
+  product    Product            @relation(fields: [productId], references: [id])
+  comboItems KitchenSendCombo[]
 
   @@index([sendId])
   @@map("kitchen_send_items")

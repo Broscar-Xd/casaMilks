@@ -22,7 +22,6 @@ export interface KitchenSend {
   createdAt: string;
   updatedAt?: string;
   items: KitchenSendItem[];
-  comboItems?: KitchenSendCombo[];
   order?: { id: string; tableId: string; table?: { name: string }; notes?: string | null; createdAt: string };
 }
 
@@ -32,6 +31,7 @@ export interface KitchenSendItem {
   productId: string;
   quantity: number;
   product?: Product;
+  comboItems?: KitchenSendCombo[];
 }
 
 export interface User {

@@ -296,25 +296,27 @@ export default function KitchenPage() {
               {/* Items */}
               <div className="px-4 py-3 space-y-2">
                 {send.items.map(item => (
-                  <div key={item.id} className="flex items-center gap-2.5">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-cocoa-500 to-cocoa-700 text-sm font-bold text-milk-50 shadow-sm">{item.quantity}</span>
-                    <span className="text-xl font-medium text-cocoa-800">{item.product?.name || 'Producto'}</span>
+                  <div key={item.id} className="space-y-1">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-cocoa-500 to-cocoa-700 text-sm font-bold text-milk-50 shadow-sm">{item.quantity}</span>
+                      <span className="text-xl font-medium text-cocoa-800">{item.product?.name || 'Producto'}</span>
+                    </div>
+                    {/* Selecciones del combo, anidadas debajo de su combo padre */}
+                    {item.comboItems && item.comboItems.length > 0 && (
+                      <div className="space-y-1.5 border-l-2 border-milk-300 ml-4 pl-3 mt-1.5">
+                        {item.comboItems.map(ci => (
+                          <div key={ci.id} className="flex items-center gap-2">
+                            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-milk-400 to-milk-500 text-xs font-bold text-cocoa-900 shadow-sm">{ci.quantity}</span>
+                            <span className="text-base text-cocoa-600 font-medium">{ci.productName}</span>
+                            {ci.lineLabel && (
+                              <span className="text-xs text-cocoa-300 ml-auto italic">{ci.lineLabel}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
-                {/* Combo breakdown */}
-                {send.comboItems && send.comboItems.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-milk-200/50 space-y-1.5">
-                    {send.comboItems.map(ci => (
-                      <div key={ci.id} className="flex items-center gap-2 pl-4">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-milk-400 to-milk-500 text-xs font-bold text-cocoa-900 shadow-sm">{ci.quantity}</span>
-                        <span className="text-base text-cocoa-600 font-medium">{ci.productName}</span>
-                        {ci.lineLabel && (
-                          <span className="text-xs text-cocoa-300 ml-auto italic">{ci.lineLabel}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
               {send.order?.notes && (
                 <div className="mx-4 mb-2 rounded-lg bg-amber-50 border border-amber-200/60 px-3 py-2">
