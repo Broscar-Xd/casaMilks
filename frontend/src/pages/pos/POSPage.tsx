@@ -1311,8 +1311,10 @@ function StatusLegend({ color, label }: { color: string; label: string }) {
 }
 
 /**
- * Selector de productos con sidebar de categorías a la izquierda (scrolleable)
- * y productos a la derecha en columnas de 2. Responsivo para teléfono.
+ * Selector de productos con sidebar de categorías a la izquierda (scrolleable,
+ * ocupa todo el alto) y productos a la derecha en columnas de 3.
+ * Las categorías se ordenan por sortOrder (secuencial) y luego por nombre.
+ * Responsivo para teléfono.
  */
 function PosProductPicker({ categories, selectedCategory, onSelectCategory, products, onAddProduct }: {
   categories: Category[];
@@ -1321,33 +1323,39 @@ function PosProductPicker({ categories, selectedCategory, onSelectCategory, prod
   products: Product[];
   onAddProduct: (p: Product) => void;
 }) {
+  // Ordenar por secuencial (sortOrder) y luego por nombre — red de seguridad
+  // por si el backend aún no está actualizado.
+  const sortedCategories = [...categories].sort((a, b) =>
+    (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name)
+  );
+
   return (
     <div className="flex flex-1 min-h-0 gap-2">
-      {/* Sidebar de categorías */}
-      <div className="w-20 sm:w-32 shrink-0 overflow-y-auto rounded-xl border border-milk-200/80 bg-milk-50/70 p-1.5 space-y-1">
+      {/* Sidebar de categorías — ocupa todo el lado izquierdo */}
+      <div className="w-28 sm:w-44 shrink-0 overflow-y-auto rounded-xl border border-milk-200/80 bg-milk-50/70 p-1.5 space-y-1">
         <button
           onClick={() => onSelectCategory(null)}
-          className={`w-full text-left rounded-lg px-2 py-2 text-[11px] sm:text-xs font-medium transition-all duration-150 ${!selectedCategory ? 'bg-cocoa-600 text-milk-50 shadow-sm' : 'text-cocoa-500 hover:bg-milk-100'}`}
+          className={`w-full text-left rounded-lg px-2.5 py-2.5 text-xs sm:text-sm font-medium transition-all duration-150 ${!selectedCategory ? 'bg-cocoa-600 text-milk-50 shadow-sm' : 'text-cocoa-500 hover:bg-milk-100'}`}
         >
           Todos
         </button>
-        {categories.map(cat => (
+        {sortedCategories.map(cat => (
           <button
             key={cat.id}
             onClick={() => onSelectCategory(cat.id)}
-            className={`w-full text-left rounded-lg px-2 py-2 text-[11px] sm:text-xs font-medium transition-all duration-150 truncate ${selectedCategory === cat.id ? 'bg-cocoa-600 text-milk-50 shadow-sm' : 'text-cocoa-500 hover:bg-milk-100'}`}
+            className={`w-full text-left rounded-lg px-2.5 py-2.5 text-xs sm:text-sm font-medium transition-all duration-150 truncate ${selectedCategory === cat.id ? 'bg-cocoa-600 text-milk-50 shadow-sm' : 'text-cocoa-500 hover:bg-milk-100'}`}
           >
             {cat.name}
           </button>
         ))}
       </div>
 
-      {/* Productos en 2 columnas */}
+      {/* Productos en 3 columnas */}
       <div className="flex-1 overflow-y-auto min-w-0 pr-0.5">
         {products.length === 0 ? (
           <p className="text-xs text-cocoa-300 text-center py-8">Sin productos en esta categoría</p>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {products.map(product => (
               <button key={product.id} onClick={() => onAddProduct(product)}
                 className="rounded-xl border border-milk-200/90 bg-white p-2.5 text-left hover:border-cocoa-300 hover:shadow-md hover:shadow-cocoa-900/10 hover:-translate-y-0.5 active:scale-95 flex flex-col transition-all duration-150">
