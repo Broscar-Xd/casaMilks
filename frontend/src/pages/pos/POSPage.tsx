@@ -481,12 +481,21 @@ export default function POSPage() {
   const printReceipt = (order: any) => {
     const w = window.open('', '_blank');
     if (!w) return;
-    const itemsHtml = order.items.map((item: any) => `
+    const itemsHtml = order.items.map((item: any) => {
+      const comboHtml = (item.comboItems && item.comboItems.length > 0)
+        ? item.comboItems.map((c: any) => `
+          <tr><td style="text-align:left;padding-left:8px;font-size:10px">- ${c.productName}${c.quantity > 1 ? ` x${c.quantity}` : ''}</td>
+          <td style="text-align:center;font-size:10px"></td>
+          <td style="text-align:right;font-size:10px"></td>
+          <td style="text-align:right;font-size:10px"></td></tr>`).join('')
+        : '';
+      return `
       <tr><td style="text-align:left">${item.product?.name || 'Producto'}</td>
       <td style="text-align:center">${item.quantity}</td>
       <td style="text-align:right">$${Number(item.unitPrice).toFixed(2)}</td>
-      <td style="text-align:right">$${Number(item.subtotal).toFixed(2)}</td></tr>`
-    ).join('');
+      <td style="text-align:right">$${Number(item.subtotal).toFixed(2)}</td></tr>
+      ${comboHtml}`;
+    }).join('');
     const payHtml = (order.payments || []).map((p: any) =>
       `<tr><td style="text-align:left">${getPaymentMethodLabel(p.method)}</td><td style="text-align:right">$${Number(p.amount).toFixed(2)}</td></tr>`
     ).join('');
@@ -708,6 +717,7 @@ export default function POSPage() {
                               {item.comboSelections.map((sel, si) => (
                                 <span key={si} className="inline-flex items-center gap-0.5 rounded-full bg-cocoa-50 px-1.5 py-0.5 text-[9px] text-cocoa-600">
                                   {sel.productName}
+                                  {item.quantity > 1 && <span className="font-bold text-cocoa-800"> x{item.quantity}</span>}
                                 </span>
                               ))}
                             </div>
@@ -747,7 +757,22 @@ export default function POSPage() {
                 <h3 className="text-sm font-semibold text-cocoa-900 mb-1.5">Productos actuales</h3>
                 <div className="bg-milk-50/80 rounded-xl border border-milk-200/70 p-3 text-xs space-y-1.5 max-h-24 overflow-y-auto">
                   {currentOrder?.items?.map(item => (
-                    <div key={item.id} className="flex justify-between text-cocoa-700"><span>{item.product?.name} <span className="text-cocoa-400">x{item.quantity}</span></span><span className="font-medium">{formatCurrency(item.subtotal)}</span></div>
+                    <div key={item.id} className="flex justify-between text-cocoa-700 gap-2">
+                      <div className="min-w-0">
+                        <span>{item.product?.name} <span className="text-cocoa-400">x{item.quantity}</span></span>
+                        {item.comboItems && item.comboItems.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            {item.comboItems.map((c) => (
+                              <span key={c.id} className="inline-flex items-center gap-0.5 rounded-full bg-cocoa-50 px-1.5 py-0.5 text-[9px] text-cocoa-600">
+                                {c.productName}
+                                {c.quantity > 1 && <span className="font-bold text-cocoa-800"> x{c.quantity}</span>}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <span className="font-medium shrink-0">{formatCurrency(item.subtotal)}</span>
+                    </div>
                   ))}
                   {(!currentOrder?.items || currentOrder.items.length === 0) && <p className="text-cocoa-300">Sin productos</p>}
                 </div>
@@ -776,6 +801,7 @@ export default function POSPage() {
                               {item.comboSelections.map((sel, si) => (
                                 <span key={si} className="inline-flex items-center gap-0.5 rounded-full bg-cocoa-50 px-1.5 py-0.5 text-[9px] text-cocoa-600">
                                   {sel.productName}
+                                  {item.quantity > 1 && <span className="font-bold text-cocoa-800"> x{item.quantity}</span>}
                                 </span>
                               ))}
                             </div>
@@ -815,9 +841,21 @@ export default function POSPage() {
               <div className="flex-1 overflow-y-auto bg-milk-50/80 rounded-2xl border border-milk-200/70 p-4 space-y-2">
                 {currentOrder.items?.map(item => (
                   <div key={item.id} className="flex justify-between items-center bg-white rounded-xl px-3 py-2.5 shadow-sm shadow-cocoa-900/5 border border-milk-200/60">
-                    <span className="text-sm text-cocoa-700">
-                      {item.product?.name} <span className="text-cocoa-300">x{item.quantity}</span>
-                    </span>
+                    <div className="min-w-0">
+                      <span className="text-sm text-cocoa-700">
+                        {item.product?.name} <span className="text-cocoa-300">x{item.quantity}</span>
+                      </span>
+                      {item.comboItems && item.comboItems.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {item.comboItems.map((c) => (
+                            <span key={c.id} className="inline-flex items-center gap-0.5 rounded-full bg-cocoa-50 px-1.5 py-0.5 text-[10px] text-cocoa-600">
+                              {c.productName}
+                              {c.quantity > 1 && <span className="font-bold text-cocoa-800"> x{c.quantity}</span>}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <span className="text-sm font-semibold text-cocoa-900">{formatCurrency(item.subtotal)}</span>
                   </div>
                 ))}

@@ -209,6 +209,7 @@ export interface OrderItem {
   unitPrice: number;
   subtotal: number;
   product?: Product;
+  comboItems?: OrderItemCombo[];
 }
 
 export interface Payment {

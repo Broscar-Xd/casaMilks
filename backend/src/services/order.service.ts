@@ -196,7 +196,7 @@ export const orderService = {
 
     return prisma.order.findUnique({
       where: { id: orderId },
-      include: { items: { include: { product: true } }, payments: true, table: true },
+      include: { items: { include: { product: true, comboItems: true } }, payments: true, table: true },
     });
   },
 
@@ -248,9 +248,16 @@ async function createOrderItemCombos(orderId: string, items: Array<{ productId: 
             orderItemId: orderItem.id,
             productId: sel.productId,
             productName: sel.productName,
-            quantity: 1,
+            // Si el desayuno/combo va x2, cada selección también va x2
+            quantity: inputItem.quantity,
             lineLabel: sel.lineLabel || null,
           },
+        });
+      } else {
+        // Si ya existía (mismo combo agregado 2 veces), acumular la cantidad
+        await prisma.orderItemCombo.update({
+          where: { id: existing.id },
+          data: { quantity: existing.quantity + inputItem.quantity },
         });
       }
     }
@@ -283,7 +290,8 @@ async function sendToKitchen(orderId: string, items: Array<{ productId: string; 
         kitchenComboItems.push({
           productId: sel.productId,
           productName: sel.productName,
-          quantity: 1,
+          // Cantidad del combo multiplicada (x2 desayunos = x2 de cada selección)
+          quantity: item.quantity,
           lineLabel: sel.lineLabel || null,
         });
       }
