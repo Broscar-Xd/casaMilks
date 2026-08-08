@@ -8,19 +8,21 @@ import type { KitchenSend, ApiResponse } from '@/types';
 /**
  * Campana de cocina.
  *
- * Los navegadores BLOQUEAN el audio automático (autoplay policy): el elemento
- * <audio> solo puede reproducir DENTRO de un gesto del usuario. Por eso el
- * botón "Probar sonido" suena pero un pedido nuevo (sin gesto) no.
- *
- * Solución robusta — Web Audio API:
- * 1. UN solo AudioContext (singleton).
+ * Los navegadores BLOQUEAN el audio automático (autoplay policy) hasta que el
+ * usuario interactúa con la página. Estrategia a prueba de balas:
+ * 1. UN solo AudioContext (singleton) + un elemento <audio> de respaldo.
  * 2. En el primer gesto (botón de prueba o cualquier toque/clic) se REANUDA
  *    el contexto y se carga el WAV decodificado a un buffer.
- * 3. Una vez "running", el contexto reproduce en CUALQUIER momento, sin
- *    necesidad de gesto (no aplica la política de autoplay).
+ * 3. Al llegar un pedido: si el contexto está suspendido, se reanuda y LUEGO
+ *    se reproduce (await resume → play). Se reintenta varias veces y, si el
+ *    AudioContext no pudo, se usa el <audio> como respaldo.
+ * 4. Además hay una ALARMA VISUAL (banner rojo parpadeante) + vibración en
+ *    Android, para que la notificación nunca se pierda aunque el sonido
+ *    esté bloqueado por el navegador.
  */
 let audioCtx: AudioContext | null = null;
 let bellBuffer: AudioBuffer | null = null;
+let bellAudioEl: HTMLAudioElement | null = null;
 
 function getAudioCtx(): AudioContext | null {
   try {
@@ -30,6 +32,19 @@ function getAudioCtx(): AudioContext | null {
       audioCtx = new Ctx();
     }
     return audioCtx;
+  } catch {
+    return null;
+  }
+}
+
+function getBellAudioEl(): HTMLAudioElement | null {
+  try {
+    if (!bellAudioEl) {
+      const a = new Audio('/sounds/campana.wav');
+      a.preload = 'auto';
+      bellAudioEl = a;
+    }
+    return bellAudioEl;
   } catch {
     return null;
   }
@@ -50,20 +65,34 @@ function unlockAudio() {
   const ctx = getAudioCtx();
   if (!ctx) return;
   loadBellBuffer(ctx);
+  // También "desbloquear" el elemento <audio> de respaldo: reproducir y pausar
+  // dentro del gesto hace que futuros play() (sin gesto) sean permitidos.
+  const el = getBellAudioEl();
+  if (el) {
+    el.currentTime = 0;
+    const p = el.play();
+    if (p && typeof p.catch === 'function') {
+      p.then(() => { el.pause(); el.currentTime = 0; }).catch(() => { /* silencioso */ });
+    }
+  }
   if (ctx.state === 'suspended') {
     ctx.resume().catch(() => { /* silencioso */ });
   }
 }
 
-/** Suena la campana. Devuelve false si el audio aún está bloqueado. */
-function playBell(): boolean {
+/** Suena la campana (WAV o fallback osciladores). Reanuda primero si hace falta. */
+async function playBell(): Promise<boolean> {
   const ctx = getAudioCtx();
   if (!ctx) return false;
   try {
-    if (ctx.state !== 'running') {
-      // Aún sin gesto del usuario: el navegador lo bloquearía. Intentar reanudar.
-      unlockAudio();
-      return false;
+    if (ctx.state === 'suspended') {
+      try {
+        await ctx.resume();
+      } catch {
+        return false;
+      }
+      const stateAfter = (ctx as any).state as string;
+      if (stateAfter !== 'running') return false;
     }
     if (bellBuffer) {
       const src = ctx.createBufferSource();
@@ -96,13 +125,45 @@ function playBell(): boolean {
   }
 }
 
+/** Respaldo con el elemento <audio> (puede fallar sin gesto previo). */
+function playBellElement(): boolean {
+  const el = getBellAudioEl();
+  if (!el) return false;
+  try {
+    el.currentTime = 0;
+    const p = el.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Intenta sonar con varias estrategias y reintentos. */
+async function ringBell() {
+  for (let i = 0; i < 3; i++) {
+    if (await playBell()) return;
+    playBellElement();
+    await new Promise((r) => setTimeout(r, 400));
+  }
+}
+
 export default function KitchenPage() {
   const { currentBranch } = useBranch();
   const [sends, setSends] = useState<KitchenSend[]>([]);
   const [loading, setLoading] = useState(true);
   const [audioReady, setAudioReady] = useState(false);
+  // Alarma visual: banner rojo parpadeante al llegar un pedido
+  const [alarm, setAlarm] = useState<{ key: number; label: string } | null>(null);
   // Referencia para detectar pedidos NUEVOS (campana solo cuando llega uno)
   const knownIds = useRef<Set<string>>(new Set());
+
+  // La alarma visual desaparece sola a los 6s
+  useEffect(() => {
+    if (!alarm) return;
+    const t = setTimeout(() => setAlarm(null), 6000);
+    return () => clearTimeout(t);
+  }, [alarm]);
 
   // Al montar: el primer gesto del usuario desbloquea el AudioContext (queda
   // "running" para siempre y puede sonar en cualquier momento)
@@ -130,7 +191,14 @@ export default function KitchenPage() {
         const isFirstLoad = knownIds.current.size === 0;
         const newSends = res.data.filter((s) => !knownIds.current.has(s.id));
         if (!isFirstLoad && newSends.length > 0) {
-          playBell();
+          // Alarma VISUAL garantizada (banner rojo) + vibración en Android
+          const mesas = newSends.map((s) => s.order?.table?.name || 'Para llevar').join(', ');
+          setAlarm({ key: Date.now(), label: `Mesa(s): ${mesas}` });
+          if (typeof navigator.vibrate === 'function') {
+            navigator.vibrate([300, 120, 300]);
+          }
+          // Sonido con reintentos
+          ringBell();
           newSends.forEach((s) => {
             const mesa = s.order?.table?.name || 'Para llevar';
             toast(`🔔 ¡Nuevo pedido a cocina! — ${mesa}`, { duration: 5000, icon: '🔔' });
@@ -182,7 +250,7 @@ export default function KitchenPage() {
         <button
           onClick={() => {
             unlockAudio();
-            playBell();
+            ringBell();
             setAudioReady(true);
           }}
           className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${audioReady ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-amber-500 text-white hover:bg-amber-600'}`}
@@ -190,6 +258,17 @@ export default function KitchenPage() {
           🔔 Probar sonido
         </button>
       </div>
+
+      {/* ALARMA VISUAL: pedido nuevo (parpadea 6s, nunca se pierde aunque no haya sonido) */}
+      {alarm && (
+        <div key={alarm.key} className="mb-4 flex items-center gap-3 rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3 shadow-lg animate-pulse">
+          <BellRing size={24} className="text-red-500 animate-bounce" />
+          <div>
+            <p className="text-sm font-bold text-red-600">🔔 ¡Nuevo pedido a cocina!</p>
+            <p className="text-xs text-red-500">{alarm.label}</p>
+          </div>
+        </div>
+      )}
       {sends.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20">
           <div className="flex h-28 w-28 items-center justify-center rounded-3xl bg-gradient-to-br from-milk-100 to-milk-200 shadow-inner mb-5">
