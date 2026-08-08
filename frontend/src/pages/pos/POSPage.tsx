@@ -671,7 +671,7 @@ export default function POSPage() {
       {showOrderModal && (
         <TableModal title={isTakeout ? 'Pedido para llevar' : `${selectedTable?.name} - Nuevo Pedido`} onClose={() => setShowOrderModal(false)}>
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 h-full">
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 flex flex-col min-w-0 min-h-0">
               {isTakeout && (
                 <div className="mb-3">
                   <label className="label">Nombre del cliente *</label>
@@ -742,7 +742,7 @@ export default function POSPage() {
       {showAddItemsModal && (
         <TableModal title={`${selectedTable?.name} - Agregar Productos`} onClose={() => setShowAddItemsModal(false)}>
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 h-full">
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 flex flex-col min-w-0 min-h-0">
               <div className="mb-2">
                 <h3 className="text-sm font-semibold text-cocoa-900 mb-1.5">Productos actuales</h3>
                 <div className="bg-milk-50/80 rounded-xl border border-milk-200/70 p-3 text-xs space-y-1.5 max-h-24 overflow-y-auto">
@@ -1311,10 +1311,12 @@ function StatusLegend({ color, label }: { color: string; label: string }) {
 }
 
 /**
- * Selector de productos con sidebar de categorías a la izquierda (scrolleable,
- * ocupa todo el alto) y productos a la derecha en columnas de 3.
+ * Selector de productos con categorías y grid de productos.
+ * - Móvil (base): categorías en FILA HORIZONTAL scrolleable con nombre completo,
+ *   productos debajo en 3 columnas. Todo con scroll propio.
+ * - Pantallas grandes (sm+): sidebar vertical a la izquierda con texto completo
+ *   (wrap en 2 líneas, sin truncar) y productos a la derecha en 3 columnas.
  * Las categorías se ordenan por sortOrder (secuencial) y luego por nombre.
- * Responsivo para teléfono.
  */
 function PosProductPicker({ categories, selectedCategory, onSelectCategory, products, onAddProduct }: {
   categories: Category[];
@@ -1324,18 +1326,21 @@ function PosProductPicker({ categories, selectedCategory, onSelectCategory, prod
   onAddProduct: (p: Product) => void;
 }) {
   // Ordenar por secuencial (sortOrder) y luego por nombre — red de seguridad
-  // por si el backend aún no está actualizado.
   const sortedCategories = [...categories].sort((a, b) =>
     (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name)
   );
 
+  const btnBase = 'rounded-lg font-medium transition-all duration-150 shrink-0';
+  const btnSelected = 'bg-cocoa-600 text-milk-50 shadow-sm';
+  const btnIdle = 'bg-white text-cocoa-500 hover:bg-milk-100 border border-milk-200/80';
+
   return (
-    <div className="flex flex-1 min-h-0 gap-2">
-      {/* Sidebar de categorías — ocupa todo el lado izquierdo */}
-      <div className="w-28 sm:w-44 shrink-0 overflow-y-auto rounded-xl border border-milk-200/80 bg-milk-50/70 p-1.5 space-y-1">
+    <div className="flex flex-col sm:flex-row flex-1 min-h-0 gap-2">
+      {/* MÓVIL: categorías horizontales scrolleables (nombre completo) */}
+      <div className="sm:hidden flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 shrink-0">
         <button
           onClick={() => onSelectCategory(null)}
-          className={`w-full text-left rounded-lg px-2.5 py-2.5 text-xs sm:text-sm font-medium transition-all duration-150 ${!selectedCategory ? 'bg-cocoa-600 text-milk-50 shadow-sm' : 'text-cocoa-500 hover:bg-milk-100'}`}
+          className={`${btnBase} px-3 py-2 text-xs whitespace-nowrap ${!selectedCategory ? btnSelected : btnIdle}`}
         >
           Todos
         </button>
@@ -1343,15 +1348,34 @@ function PosProductPicker({ categories, selectedCategory, onSelectCategory, prod
           <button
             key={cat.id}
             onClick={() => onSelectCategory(cat.id)}
-            className={`w-full text-left rounded-lg px-2.5 py-2.5 text-xs sm:text-sm font-medium transition-all duration-150 truncate ${selectedCategory === cat.id ? 'bg-cocoa-600 text-milk-50 shadow-sm' : 'text-cocoa-500 hover:bg-milk-100'}`}
+            className={`${btnBase} px-3 py-2 text-xs whitespace-nowrap ${selectedCategory === cat.id ? btnSelected : btnIdle}`}
           >
             {cat.name}
           </button>
         ))}
       </div>
 
-      {/* Productos en 3 columnas */}
-      <div className="flex-1 overflow-y-auto min-w-0 pr-0.5">
+      {/* DESKTOP: sidebar vertical a la izquierda (texto completo en 2 líneas) */}
+      <div className="hidden sm:flex w-44 shrink-0 flex-col overflow-y-auto rounded-xl border border-milk-200/80 bg-milk-50/70 p-1.5 space-y-1 min-h-0">
+        <button
+          onClick={() => onSelectCategory(null)}
+          className={`w-full text-left rounded-lg px-2.5 py-2.5 text-sm font-medium transition-all duration-150 ${!selectedCategory ? 'bg-cocoa-600 text-milk-50 shadow-sm' : 'text-cocoa-500 hover:bg-milk-100'}`}
+        >
+          Todos
+        </button>
+        {sortedCategories.map(cat => (
+          <button
+            key={cat.id}
+            onClick={() => onSelectCategory(cat.id)}
+            className={`w-full text-left rounded-lg px-2.5 py-2.5 text-sm font-medium transition-all duration-150 leading-tight ${selectedCategory === cat.id ? 'bg-cocoa-600 text-milk-50 shadow-sm' : 'text-cocoa-500 hover:bg-milk-100'}`}
+          >
+            {cat.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Productos en 3 columnas — con scroll propio */}
+      <div className="flex-1 overflow-y-auto min-w-0 min-h-0 pr-0.5">
         {products.length === 0 ? (
           <p className="text-xs text-cocoa-300 text-center py-8">Sin productos en esta categoría</p>
         ) : (
