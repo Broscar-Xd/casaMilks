@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/services/api';
 import toast from 'react-hot-toast';
-import { Plus, Pencil, Loader2, Layers, X, GripVertical } from 'lucide-react';
+import { Plus, Pencil, Loader2, Layers, X, GripVertical, ListOrdered } from 'lucide-react';
 import { Pagination } from '@/components/ui/Pagination';
 import { usePagination } from '@/hooks/usePagination';
 import type { Category, ApiResponse, ComboLine, ComboProduct } from '@/types';
@@ -167,6 +167,19 @@ export default function CategoriesPage() {
 
   if (loading) return <div className="flex h-64 items-center justify-center"><Loader2 size={32} className="animate-spin text-cocoa-500" /></div>;
 
+  const reorderAll = async () => {
+    if (!confirm('¿Asignar secuencial 1, 2, 3... a todas las categorías?\nSe respeta el orden actual (secuencial y luego alfabético).')) return;
+    try {
+      const res = await api.post<ApiResponse<{ updated: number }>>('/categories/reorder');
+      if (res.success) {
+        toast.success(`Secuencial asignado a ${res.data?.updated ?? categories.length} categorías`);
+        fetchData();
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al reordenar');
+    }
+  };
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
@@ -174,7 +187,10 @@ export default function CategoriesPage() {
           <h1 className="text-xl font-bold text-gray-900">Categorías</h1>
           <p className="text-xs text-gray-500">{categories.length} categorías</p>
         </div>
-        <button onClick={openCreate} className="btn-primary"><Plus size={18} /> Nueva Categoría</button>
+        <div className="flex gap-2">
+          <button onClick={reorderAll} className="btn-secondary"><ListOrdered size={16} /> Asignar secuencial a todas</button>
+          <button onClick={openCreate} className="btn-primary"><Plus size={18} /> Nueva Categoría</button>
+        </div>
       </div>
 
       <div className="card overflow-hidden">

@@ -17,6 +17,9 @@ export const categoryService = {
 
   update: (id: string, input: UpdateCategoryInput) => categoryRepository.update(id, input),
 
+  /** Asigna secuencial 1..N a todas las categorías. */
+  reorderAll: () => categoryRepository.reorderAll(),
+
   // Combo lines
   getComboLines: (categoryId: string) => categoryRepository.getComboLines(categoryId),
 

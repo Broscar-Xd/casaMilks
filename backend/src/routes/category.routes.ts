@@ -10,6 +10,7 @@ categoryRoutes.use(authenticate);
 
 categoryRoutes.get('/', categoryController.list);
 categoryRoutes.get('/all', authorize('ADMIN'), categoryController.listAll);
+categoryRoutes.post('/reorder', authorize('ADMIN'), categoryController.reorderAll);
 categoryRoutes.get('/:id', categoryController.getById);
 categoryRoutes.post('/', authorize('ADMIN'), validate(createCategorySchema), categoryController.create);
 categoryRoutes.patch('/:id', authorize('ADMIN'), validate(updateCategorySchema), categoryController.update);

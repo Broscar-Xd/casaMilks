@@ -51,6 +51,16 @@ export const categoryController = {
     }
   },
 
+  /** POST /api/categories/reorder — asigna secuencial 1..N a todas las categorías */
+  reorderAll: async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const updated = await categoryService.reorderAll();
+      res.json({ success: true, data: { updated } });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   // Combo lines
   getComboLines: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {

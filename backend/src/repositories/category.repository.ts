@@ -34,6 +34,29 @@ export const categoryRepository = {
   update: (id: string, data: { name?: string; description?: string; active?: boolean; isCombo?: boolean; sortOrder?: number }) =>
     prisma.category.update({ where: { id }, data }),
 
+  /** Asigna sortOrder 1..N a todas las categorías (según el orden actual: sortOrder asc, luego nombre). */
+  async reorderAll(): Promise<number> {
+    const cats = await prisma.category.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+    // Preservar el orden: agrupar por sortOrder actual y ordenar cada grupo por nombre
+    const ordered = [...cats].sort((a, b) => {
+      const soA = a.sortOrder || 0;
+      const soB = b.sortOrder || 0;
+      if (soA !== soB) return soA - soB;
+      return a.name.localeCompare(b.name);
+    });
+    let count = 0;
+    for (let i = 0; i < ordered.length; i++) {
+      const newOrder = i + 1;
+      if ((ordered[i].sortOrder || 0) !== newOrder) {
+        await prisma.category.update({ where: { id: ordered[i].id }, data: { sortOrder: newOrder } });
+        count++;
+      }
+    }
+    return count;
+  },
+
   // Combo lines
   getComboLines: (categoryId: string) =>
     prisma.comboLine.findMany({
