@@ -5,11 +5,52 @@ import toast from 'react-hot-toast';
 import { Clock, ChefHat, Loader2, CheckCircle, BellRing } from 'lucide-react';
 import type { KitchenSend, ApiResponse } from '@/types';
 
+/**
+ * AudioContext singleton + desbloqueo por gesto del usuario.
+ *
+ * Los navegadores BLOQUEAN el audio automático (autoplay policy) hasta que el
+ * usuario interactúa con la página. Por eso:
+ * 1. Creamos UN solo AudioContext (reutilizable).
+ * 2. Al primer toque/clic/tecla del usuario, lo reanudamos (ctx.resume()).
+ * 3. Si aún está suspendido al llegar un pedido, se intenta reproducir igual
+ *    (el gesto previo ya lo habrá desbloqueado).
+ */
+let audioCtx: AudioContext | null = null;
+
+function getAudioCtx(): AudioContext | null {
+  try {
+    if (!audioCtx) {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!Ctx) return null;
+      audioCtx = new Ctx();
+    }
+    return audioCtx;
+  } catch {
+    return null;
+  }
+}
+
+/** Desbloquea el audio con el primer gesto del usuario (una sola vez). */
+function unlockAudio() {
+  const ctx = getAudioCtx();
+  if (ctx && ctx.state === 'suspended') {
+    ctx.resume().catch(() => { /* silencioso */ });
+  }
+  // Listener único: después del primer gesto ya no hace falta
+  window.removeEventListener('pointerdown', unlockAudio);
+  window.removeEventListener('keydown', unlockAudio);
+  window.removeEventListener('touchstart', unlockAudio);
+}
+
 /** Suena una campana (ding-dong) usando Web Audio API — sin archivo externo. */
 function playBell() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  if (ctx.state === 'suspended') {
+    // Aún bloqueado: intentar reanudar (si el usuario ya tocó, funciona)
+    ctx.resume().catch(() => {});
+  }
   try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    const ctx = new AudioCtx();
     const now = ctx.currentTime;
 
     // Nota 1 (E5 ~659Hz)
@@ -44,8 +85,25 @@ export default function KitchenPage() {
   const { currentBranch } = useBranch();
   const [sends, setSends] = useState<KitchenSend[]>([]);
   const [loading, setLoading] = useState(true);
+  const [audioReady, setAudioReady] = useState(false);
   // Referencia para detectar pedidos NUEVOS (campana solo cuando llega uno)
   const knownIds = useRef<Set<string>>(new Set());
+
+  // Al montar: desbloquear el audio con el primer gesto del usuario
+  useEffect(() => {
+    const markReady = () => {
+      unlockAudio();
+      setAudioReady(true);
+    };
+    window.addEventListener('pointerdown', markReady);
+    window.addEventListener('keydown', markReady);
+    window.addEventListener('touchstart', markReady);
+    return () => {
+      window.removeEventListener('pointerdown', markReady);
+      window.removeEventListener('keydown', markReady);
+      window.removeEventListener('touchstart', markReady);
+    };
+  }, []);
 
   const fetchSends = useCallback(async () => {
     if (!currentBranch) return;
@@ -96,6 +154,13 @@ export default function KitchenPage() {
       <div className="page-header">
         <h1 className="page-title">Cocina</h1>
         <p className="page-subtitle">{currentBranch.name} — {sends.length} pedido{sends.length !== 1 ? 's' : ''} pendiente{sends.length !== 1 ? 's' : ''}</p>
+      </div>
+      {/* Indicador de audio */}
+      <div className={`mb-4 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium ${audioReady ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+        <BellRing size={14} />
+        {audioReady
+          ? 'Sonido de campana activado — sonará al llegar un pedido'
+          : 'Toca la pantalla una vez para activar el sonido de campana'}
       </div>
       {sends.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20">
