@@ -33,6 +33,9 @@ export default function POSPage() {
     quantity: number;
     subtotal: number;
     comboSelections?: Array<{ productId: string; productName: string; lineLabel: string }>;
+    // Identificador único por instancia (necesario porque un mismo combo puede
+    // agregarse varias veces con selecciones DIFERENTES)
+    uid: string;
   }>>([]);
 
   // Combo selection
@@ -294,7 +297,7 @@ export default function POSPage() {
             : item
         );
       }
-      return [...prev, { product, quantity: 1, subtotal: Number(product.price) }];
+      return [...prev, { product, quantity: 1, subtotal: Number(product.price), uid: crypto.randomUUID() }];
     });
   };
 
@@ -322,17 +325,12 @@ export default function POSPage() {
         }
       }
     }
-    setCart(prev => {
-      const existing = prev.find(item => item.product.id === comboProduct.id);
-      if (existing) {
-        return prev.map(item =>
-          item.product.id === comboProduct.id
-            ? { ...item, quantity: item.quantity + 1, subtotal: (item.quantity + 1) * Number(comboProduct.price), comboSelections: selections }
-            : item
-        );
-      }
-      return [...prev, { product: comboProduct, quantity: 1, subtotal: Number(comboProduct.price), comboSelections: selections }];
-    });
+    setCart(prev => [
+      // Cada combo agregado es un item SEPARADO (uid único): dos desayunos
+      // pueden tener selecciones diferentes, no deben agruparse.
+      ...prev,
+      { product: comboProduct, quantity: 1, subtotal: Number(comboProduct.price), comboSelections: selections, uid: crypto.randomUUID() },
+    ]);
     setShowComboModal(false);
     setComboProduct(null);
     toast.success(`${comboProduct.name} agregado con opciones`);
@@ -352,18 +350,18 @@ export default function POSPage() {
     });
   };
 
-  const updateQty = (productId: string, delta: number) => {
+  const updateQty = (uid: string, delta: number) => {
     setCart(prev =>
       prev.map(item =>
-        item.product.id === productId
+        item.uid === uid
           ? { ...item, quantity: Math.max(1, item.quantity + delta), subtotal: Math.max(1, item.quantity + delta) * Number(item.product.price) }
           : item
       ).filter(item => item.quantity > 0)
     );
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart(prev => prev.filter(item => item.product.id !== productId));
+  const removeFromCart = (uid: string) => {
+    setCart(prev => prev.filter(item => item.uid !== uid));
   };
 
   const totalCart = cart.reduce((s, i) => s + i.subtotal, 0);
@@ -709,7 +707,7 @@ export default function POSPage() {
                 {cart.length === 0 ? <p className="text-xs text-cocoa-300 text-center py-4">Selecciona productos</p> : (
                   <div className="space-y-1.5">
                     {cart.map(item => (
-                      <div key={item.product.id} className="flex items-center gap-2 bg-white rounded-xl p-2 text-xs shadow-sm shadow-cocoa-900/5 border border-milk-200/60">
+                      <div key={item.uid} className="flex items-center gap-2 bg-white rounded-xl p-2 text-xs shadow-sm shadow-cocoa-900/5 border border-milk-200/60">
                         <div className="flex-1 min-w-0">
                           <p className="truncate font-medium text-cocoa-800">{item.product.name}</p>
                           {item.comboSelections && item.comboSelections.length > 0 && (
@@ -724,10 +722,10 @@ export default function POSPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-1">
-                          <button onClick={() => updateQty(item.product.id, -1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
+                          <button onClick={() => updateQty(item.uid, -1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
                           <span className="w-6 text-center font-semibold text-cocoa-800">{item.quantity}</span>
-                          <button onClick={() => updateQty(item.product.id, 1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Plus size={12} /></button>
-                          <button onClick={() => removeFromCart(item.product.id)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors" title="Eliminar">
+                          <button onClick={() => updateQty(item.uid, 1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Plus size={12} /></button>
+                          <button onClick={() => removeFromCart(item.uid)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors" title="Eliminar">
                             <Trash2 size={12} />
                           </button>
                         </div>
@@ -793,7 +791,7 @@ export default function POSPage() {
                 {cart.length === 0 ? <p className="text-xs text-cocoa-300 text-center py-4">Selecciona productos</p> : (
                   <div className="space-y-1.5">
                     {cart.map(item => (
-                      <div key={item.product.id} className="flex items-center gap-2 bg-white rounded-xl p-2 text-xs shadow-sm shadow-cocoa-900/5 border border-milk-200/60">
+                      <div key={item.uid} className="flex items-center gap-2 bg-white rounded-xl p-2 text-xs shadow-sm shadow-cocoa-900/5 border border-milk-200/60">
                         <div className="flex-1 min-w-0">
                           <p className="truncate font-medium text-cocoa-800">{item.product.name}</p>
                           {item.comboSelections && item.comboSelections.length > 0 && (
@@ -808,10 +806,10 @@ export default function POSPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-1">
-                          <button onClick={() => updateQty(item.product.id, -1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
+                          <button onClick={() => updateQty(item.uid, -1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
                           <span className="w-6 text-center font-semibold text-cocoa-800">{item.quantity}</span>
-                          <button onClick={() => updateQty(item.product.id, 1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Plus size={12} /></button>
-                          <button onClick={() => removeFromCart(item.product.id)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors" title="Eliminar">
+                          <button onClick={() => updateQty(item.uid, 1)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Plus size={12} /></button>
+                          <button onClick={() => removeFromCart(item.uid)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors" title="Eliminar">
                             <Trash2 size={12} />
                           </button>
                         </div>
