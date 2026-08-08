@@ -6,78 +6,77 @@ import { Clock, ChefHat, Loader2, CheckCircle, BellRing } from 'lucide-react';
 import type { KitchenSend, ApiResponse } from '@/types';
 
 /**
- * AudioContext singleton + desbloqueo por gesto del usuario.
+ * Campana de cocina usando un archivo de audio real (frontend/public/sounds/campana.wav).
  *
  * Los navegadores BLOQUEAN el audio automático (autoplay policy) hasta que el
  * usuario interactúa con la página. Por eso:
- * 1. Creamos UN solo AudioContext (reutilizable).
- * 2. Al primer toque/clic/tecla del usuario, lo reanudamos (ctx.resume()).
- * 3. Si aún está suspendido al llegar un pedido, se intenta reproducir igual
- *    (el gesto previo ya lo habrá desbloqueado).
+ * 1. Usamos UN elemento <audio> reutilizable.
+ * 2. Botón "Probar sonido" — reproduce dentro del gesto del usuario (desbloqueo garantizado).
+ * 3. Al primer toque/clic en cualquier parte de la página, el dominio queda
+ *    desbloqueado para futuros play() con sonido.
  */
-let audioCtx: AudioContext | null = null;
+let bellAudio: HTMLAudioElement | null = null;
 
-function getAudioCtx(): AudioContext | null {
+function getBellAudio(): HTMLAudioElement | null {
   try {
-    if (!audioCtx) {
-      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!Ctx) return null;
-      audioCtx = new Ctx();
+    if (!bellAudio) {
+      const a = new Audio('/sounds/campana.wav');
+      a.preload = 'auto';
+      bellAudio = a;
     }
-    return audioCtx;
+    return bellAudio;
   } catch {
     return null;
   }
 }
 
-/** Desbloquea el audio con el primer gesto del usuario (una sola vez). */
-function unlockAudio() {
-  const ctx = getAudioCtx();
-  if (ctx && ctx.state === 'suspended') {
-    ctx.resume().catch(() => { /* silencioso */ });
+/** Suena la campana (campana.wav). Devuelve true si se pudo reproducir. */
+function playBell(): boolean {
+  const a = getBellAudio();
+  if (!a) return false;
+  try {
+    a.currentTime = 0;
+    const p = a.play();
+    if (p && typeof p.catch === 'function') {
+      p.catch(() => {
+        // Bloqueado por autoplay → fallback con Web Audio (siempre y cuando ya haya gesto)
+        playBellOsc();
+      });
+    }
+    return true;
+  } catch {
+    playBellOsc();
+    return false;
   }
-  // Listener único: después del primer gesto ya no hace falta
-  window.removeEventListener('pointerdown', unlockAudio);
-  window.removeEventListener('keydown', unlockAudio);
-  window.removeEventListener('touchstart', unlockAudio);
 }
 
-/** Suena una campana (ding-dong) usando Web Audio API — sin archivo externo. */
-function playBell() {
-  const ctx = getAudioCtx();
-  if (!ctx) return;
-  if (ctx.state === 'suspended') {
-    // Aún bloqueado: intentar reanudar (si el usuario ya tocó, funciona)
-    ctx.resume().catch(() => {});
-  }
+/** Fallback: campana sintetizada con Web Audio API (sin archivo). */
+function playBellOsc() {
+  let ctx: AudioContext | null = null;
   try {
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    ctx = new Ctx();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     const now = ctx.currentTime;
-
-    // Nota 1 (E5 ~659Hz)
-    const osc1 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
-    osc1.type = 'sine';
-    osc1.frequency.value = 659.25;
-    gain1.gain.setValueAtTime(0.001, now);
-    gain1.gain.exponentialRampToValueAtTime(0.5, now + 0.02);
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
-    osc1.connect(gain1).connect(ctx.destination);
-    osc1.start(now);
-    osc1.stop(now + 0.7);
-
-    // Nota 2 (C6 ~1046Hz) — la campana "ding"
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.type = 'sine';
-    osc2.frequency.value = 1046.5;
-    gain2.gain.setValueAtTime(0.001, now + 0.25);
-    gain2.gain.exponentialRampToValueAtTime(0.4, now + 0.27);
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
-    osc2.connect(gain2).connect(ctx.destination);
-    osc2.start(now + 0.25);
-    osc2.stop(now + 1.1);
+    const strike = (freq: number, t0: number, vol: number, len: number) => {
+      const osc = ctx!.createOscillator();
+      const gain = ctx!.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.001, now + t0);
+      gain.gain.exponentialRampToValueAtTime(vol, now + t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + t0 + len);
+      osc.connect(gain).connect(ctx!.destination);
+      osc.start(now + t0);
+      osc.stop(now + t0 + len);
+    };
+    strike(659.25, 0, 0.5, 0.7);
+    strike(1046.5, 0.25, 0.4, 1.1);
   } catch {
-    /* audio no disponible: silencioso */
+    /* sin audio: silencioso */
   }
 }
 
@@ -89,10 +88,11 @@ export default function KitchenPage() {
   // Referencia para detectar pedidos NUEVOS (campana solo cuando llega uno)
   const knownIds = useRef<Set<string>>(new Set());
 
-  // Al montar: desbloquear el audio con el primer gesto del usuario
+  // Al montar: el primer gesto del usuario desbloquea el audio del dominio
   useEffect(() => {
     const markReady = () => {
-      unlockAudio();
+      // Pre-cargar el audio (el primer play() ya funcionará)
+      getBellAudio();
       setAudioReady(true);
     };
     window.addEventListener('pointerdown', markReady);
@@ -155,12 +155,23 @@ export default function KitchenPage() {
         <h1 className="page-title">Cocina</h1>
         <p className="page-subtitle">{currentBranch.name} — {sends.length} pedido{sends.length !== 1 ? 's' : ''} pendiente{sends.length !== 1 ? 's' : ''}</p>
       </div>
-      {/* Indicador de audio */}
-      <div className={`mb-4 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium ${audioReady ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+      {/* Indicador de audio con botón de prueba */}
+      <div className={`mb-4 flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium ${audioReady ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
         <BellRing size={14} />
-        {audioReady
-          ? 'Sonido de campana activado — sonará al llegar un pedido'
-          : 'Toca la pantalla una vez para activar el sonido de campana'}
+        <span className="flex-1 min-w-40">
+          {audioReady
+            ? 'Sonido de campana activado — sonará al llegar un pedido'
+            : 'Activa el sonido de campana tocando la pantalla o el botón de prueba'}
+        </span>
+        <button
+          onClick={() => {
+            playBell();
+            setAudioReady(true);
+          }}
+          className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${audioReady ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-amber-500 text-white hover:bg-amber-600'}`}
+        >
+          {audioReady ? '🔔 Probar sonido' : '🔔 Probar sonido'}
+        </button>
       </div>
       {sends.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20">
