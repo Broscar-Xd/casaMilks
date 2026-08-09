@@ -33,6 +33,11 @@ export const addItemsToOrderSchema = z.object({
   items: z.array(orderItemSchema).min(1, 'Debe tener al menos un producto'),
 });
 
+export const updateOrderItemSchema = z.object({
+  quantity: z.number().int().positive('Cantidad debe ser al menos 1').optional(),
+  comboSelections: z.array(comboSelectionSchema).optional(),
+});
+
 export const closeOrderSchema = z.object({
   payments: z.array(z.object({
     method: z.enum(['CASH', 'CARD', 'TRANSFER', 'DEUNA', 'PANAPAY']),
@@ -53,4 +58,5 @@ export const closeOrderSchema = z.object({
 export type CreateTableOrderInput = z.infer<typeof createTableOrderSchema>;
 export type CreateTakeoutOrderInput = z.infer<typeof createTakeoutOrderSchema>;
 export type AddItemsToOrderInput = z.infer<typeof addItemsToOrderSchema>;
+export type UpdateOrderItemInput = z.infer<typeof updateOrderItemSchema>;
 export type CloseOrderInput = z.infer<typeof closeOrderSchema>;

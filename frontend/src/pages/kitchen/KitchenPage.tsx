@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBranch } from '@/contexts/BranchContext';
 import { api } from '@/services/api';
 import toast from 'react-hot-toast';
-import { Clock, ChefHat, Loader2, CheckCircle, BellRing } from 'lucide-react';
-import type { KitchenSend, ApiResponse } from '@/types';
+import { Clock, ChefHat, Loader2, CheckCircle, BellRing, Pencil, Trash2, Minus, Plus, Layers, X } from 'lucide-react';
+import type { KitchenSend, KitchenSendItem, ComboLine, ApiResponse } from '@/types';
 
 /**
  * Campana de cocina.
@@ -230,6 +230,101 @@ export default function KitchenPage() {
     }
   };
 
+  // ---- Edición de items desde cocina ----
+  const [editingItem, setEditingItem] = useState<{ send: KitchenSend; item: KitchenSendItem } | null>(null);
+  const [editQty, setEditQty] = useState(1);
+  const [editLines, setEditLines] = useState<ComboLine[]>([]);
+  const [editSelections, setEditSelections] = useState<Record<string, string[]>>({});
+  const [editLoading, setEditLoading] = useState(false);
+
+  const openEditItem = async (send: KitchenSend, item: KitchenSendItem) => {
+    setEditingItem({ send, item });
+    setEditQty(item.quantity);
+    setEditLines([]);
+    setEditSelections({});
+    // Si es combo, cargar sus opciones y marcar las seleccionadas
+    if (item.product?.category?.isCombo && item.product?.categoryId) {
+      try {
+        const res = await api.get<ApiResponse<ComboLine[]>>(`/categories/${item.product.categoryId}/combos`);
+        if (res.success && res.data) {
+          setEditLines(res.data);
+          const init: Record<string, string[]> = {};
+          res.data.forEach(line => {
+            init[line.id] = (item.comboItems || [])
+              .filter(c => c.lineLabel === line.label)
+              .map(c => c.productId);
+          });
+          setEditSelections(init);
+        }
+      } catch {
+        /* el modal sigue funcionando solo con cantidad */
+      }
+    }
+  };
+
+  const toggleEditSelection = (lineId: string, productId: string, maxSelect: number) => {
+    setEditSelections(prev => {
+      const current = prev[lineId] || [];
+      if (current.includes(productId)) {
+        return { ...prev, [lineId]: current.filter(id => id !== productId) };
+      }
+      if (current.length >= maxSelect) {
+        toast.error(`Máximo ${maxSelect} selecciones`);
+        return prev;
+      }
+      return { ...prev, [lineId]: [...current, productId] };
+    });
+  };
+
+  const saveEditItem = async () => {
+    const editing = editingItem;
+    const orderId = editing?.send.order?.id;
+    if (!orderId) return;
+    const { send, item } = editing;
+    // Validar líneas requeridas
+    for (const line of editLines) {
+      const selected = editSelections[line.id] || [];
+      if (line.required && selected.length < line.minSelect) {
+        toast.error(`Selecciona al menos ${line.minSelect} en "${line.label}"`);
+        return;
+      }
+    }
+    const selections: Array<{ productId: string; productName: string; lineLabel: string }> = [];
+    for (const line of editLines) {
+      for (const pid of editSelections[line.id] || []) {
+        const lp = line.comboLineProducts?.find(clp => clp.productId === pid)?.product;
+        if (lp) selections.push({ productId: lp.id, productName: lp.name, lineLabel: line.label });
+      }
+    }
+    setEditLoading(true);
+    try {
+      const body: Record<string, unknown> = { quantity: editQty };
+      if (editLines.length > 0) body.comboSelections = selections;
+      const res = await api.patch<ApiResponse<KitchenSend>>(`/orders/${orderId}/items/${item.id}`, body);
+      if (res.success) {
+        toast.success('Item actualizado');
+        setEditingItem(null);
+        fetchSends();
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al actualizar');
+    } finally { setEditLoading(false); }
+  };
+
+  const deleteSendItem = async (send: KitchenSend, item: KitchenSendItem) => {
+    if (!send.order?.id) return;
+    if (!confirm(`¿Eliminar "${item.product?.name}" del pedido?`)) return;
+    try {
+      const res = await api.delete<ApiResponse<KitchenSend>>(`/orders/${send.order.id}/items/${item.id}`);
+      if (res.success) {
+        toast.success('Producto eliminado');
+        fetchSends();
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al eliminar');
+    }
+  };
+
   if (!currentBranch) return <div className="flex h-64 items-center justify-center"><p className="text-cocoa-300">Selecciona un local</p></div>;
   if (loading) return <div className="flex h-64 items-center justify-center"><Loader2 size={32} className="animate-spin text-cocoa-500" /></div>;
 
@@ -299,7 +394,21 @@ export default function KitchenPage() {
                   <div key={item.id} className="space-y-1">
                     <div className="flex items-center gap-2.5">
                       <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-cocoa-500 to-cocoa-700 text-sm font-bold text-milk-50 shadow-sm">{item.quantity}</span>
-                      <span className="text-xl font-medium text-cocoa-800">{item.product?.name || 'Producto'}</span>
+                      <span className="text-xl font-medium text-cocoa-800 flex-1 min-w-0 truncate">{item.product?.name || 'Producto'}</span>
+                      <button
+                        onClick={() => openEditItem(send, item)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-milk-100 text-cocoa-500 hover:bg-milk-200 hover:text-cocoa-700 transition-colors"
+                        title="Editar (cantidad o elecciones del combo)"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        onClick={() => deleteSendItem(send, item)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors"
+                        title="Eliminar del pedido"
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     </div>
                     {/* Selecciones del combo, anidadas debajo de su combo padre */}
                     {item.comboItems && item.comboItems.length > 0 && (
@@ -330,6 +439,97 @@ export default function KitchenPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* MODAL: Editar item desde cocina */}
+      {editingItem && (
+        <div className="modal-overlay" onClick={() => setEditingItem(null)}>
+          <div className="w-full max-w-lg modal-content max-h-[90vh] flex flex-col mx-2 sm:mx-0" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-milk-200/70 px-6 py-4 shrink-0 bg-gradient-to-r from-milk-50/60 to-transparent rounded-t-3xl">
+              <h2 className="text-base font-semibold text-cocoa-900 flex items-center gap-2.5">
+                <span className="h-5 w-1 rounded-full bg-gradient-to-b from-cocoa-500 to-cocoa-700" />
+                Editar {editingItem.item.product?.name || 'Producto'}
+              </h2>
+              <button onClick={() => setEditingItem(null)} className="btn-ghost p-1.5 rounded-xl hover:bg-milk-100"><X size={18} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              {/* Cantidad */}
+              <div className="flex items-center gap-3 rounded-xl bg-cocoa-50/50 border border-cocoa-200/60 p-3">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cocoa-500 to-cocoa-700 text-milk-50 font-bold shadow-md">
+                  <Layers size={20} />
+                </span>
+                <div className="flex-1">
+                  <p className="font-semibold text-cocoa-900">{editingItem.item.product?.name || 'Producto'}</p>
+                  <p className="text-xs text-cocoa-400">Cantidad</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => setEditQty(q => Math.max(1, q - 1))} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white border border-milk-200 text-cocoa-600 hover:bg-milk-100 transition-colors"><Minus size={16} /></button>
+                  <span className="w-8 text-center font-bold text-cocoa-900 text-lg">{editQty}</span>
+                  <button onClick={() => setEditQty(q => q + 1)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white border border-milk-200 text-cocoa-600 hover:bg-milk-100 transition-colors"><Plus size={16} /></button>
+                </div>
+              </div>
+
+              {/* Elecciones del combo */}
+              {editLines.length > 0 && (
+                <div className="space-y-5">
+                  <div className="flex items-center gap-2">
+                    <span className="h-5 w-1 rounded-full bg-gradient-to-b from-cocoa-400 to-cocoa-600" />
+                    <p className="text-sm font-semibold text-cocoa-900">Elecciones del combo</p>
+                  </div>
+                  {editLines.map(line => (
+                    <div key={line.id} className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-cocoa-800">{line.label}</p>
+                        {line.required && <span className="text-[10px] text-red-500 font-medium">*Requerido</span>}
+                        <span className="text-[10px] text-cocoa-300 ml-auto">
+                          {line.minSelect === line.maxSelect
+                            ? `Selecciona ${line.minSelect}`
+                            : `Min ${line.minSelect} · Max ${line.maxSelect}`}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {(line.comboLineProducts || []).map(clp => {
+                          const opt = clp.product;
+                          const isSelected = (editSelections[line.id] || []).includes(opt.id);
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => toggleEditSelection(line.id, opt.id, line.maxSelect)}
+                              className={`relative flex items-center gap-2 rounded-xl border-2 px-3 py-2.5 text-left transition-all duration-150 ${
+                                isSelected
+                                  ? 'border-cocoa-500 bg-cocoa-50 shadow-md shadow-cocoa-500/20'
+                                  : 'border-milk-200 bg-white hover:border-cocoa-300 hover:shadow-sm'
+                              }`}
+                            >
+                              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-bold ${
+                                isSelected ? 'bg-cocoa-600 text-milk-50' : 'bg-milk-100 text-cocoa-400'
+                              }`}>
+                                {isSelected ? '✓' : ''}
+                              </span>
+                              <span className={`text-sm font-medium ${isSelected ? 'text-cocoa-900' : 'text-cocoa-600'}`}>
+                                {opt.name}
+                              </span>
+                            </button>
+                          );
+                        })}
+                        {(line.comboLineProducts || []).length === 0 && (
+                          <p className="text-xs text-cocoa-300 col-span-full text-center py-3">Sin opciones disponibles</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="border-t border-milk-200/70 px-6 py-4 shrink-0 flex gap-3">
+              <button onClick={() => setEditingItem(null)} className="btn-secondary flex-1">Cancelar</button>
+              <button onClick={saveEditItem} disabled={editLoading} className="btn-primary flex-1">
+                {editLoading ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

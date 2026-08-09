@@ -3,7 +3,7 @@ import { useBranch } from '@/contexts/BranchContext';
 import { api } from '@/services/api';
 import { formatCurrency, getPaymentMethodLabel } from '@/lib/utils';
 import toast from 'react-hot-toast';
-import { Loader2, Plus, Minus, Trash2, Receipt, ChefHat, ShoppingCart, X, Search, Banknote, CreditCard, Smartphone, Package, Layers, CheckCircle, XCircle, FileText, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Loader2, Plus, Minus, Trash2, Receipt, ChefHat, ShoppingCart, X, Search, Banknote, CreditCard, Smartphone, Package, Layers, CheckCircle, XCircle, FileText, ChevronRight, ChevronLeft, Pencil } from 'lucide-react';
 import type { TableItem, Product, Category, Order, OrderItem, ApiResponse, PaymentMethod, KitchenSend, ComboLine, Customer } from '@/types';
 import { hasKitchenPending } from '@/types';
 
@@ -43,6 +43,9 @@ export default function POSPage() {
   const [comboProduct, setComboProduct] = useState<Product | null>(null);
   const [comboLines, setComboLines] = useState<ComboLine[]>([]);
   const [comboSelections, setComboSelections] = useState<Record<string, string[]>>({});
+  // Modo edición: se está modificando un combo YA en el pedido
+  const [editingComboItem, setEditingComboItem] = useState<OrderItem | null>(null);
+  const [editingQty, setEditingQty] = useState(1);
 
   // Products and categories for ordering
   const [products, setProducts] = useState<Product[]>([]);
@@ -263,17 +266,33 @@ export default function POSPage() {
     return () => clearInterval(interval);
   }, [showCloseModal, currentOrder?.id, currentOrder?.tableId]);
 
-  const openComboSelector = async (product: Product) => {
+  /** Recarga la orden actual (tras editar/eliminar items). */
+  const refreshCurrentOrder = useCallback(async (orderId: string) => {
+    try {
+      const res = await api.get<ApiResponse<Order>>(`/orders/${orderId}`);
+      if (res.success && res.data) {
+        setCurrentOrder(res.data);
+        setKitchenPending(hasKitchenPending(res.data));
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  const openComboSelector = async (product: Product, editingItem?: OrderItem) => {
     setComboProduct(product);
-    setComboSelections({});
+    setEditingComboItem(editingItem || null);
+    setEditingQty(editingItem?.quantity || 1);
     try {
       const categoryId = product.categoryId;
       const res = await api.get<ApiResponse<ComboLine[]>>(`/categories/${categoryId}/combos`);
       if (res.success && res.data) {
         setComboLines(res.data);
-        // Init selections
+        // Init selections (las existentes si es edición)
         const init: Record<string, string[]> = {};
-        res.data.forEach(line => { init[line.id] = []; });
+        res.data.forEach(line => {
+          init[line.id] = editingItem?.comboItems
+            ? editingItem.comboItems.filter(c => c.lineLabel === line.label).map(c => c.productId)
+            : [];
+        });
         setComboSelections(init);
         setShowComboModal(true);
       }
@@ -301,20 +320,24 @@ export default function POSPage() {
     });
   };
 
-  const addComboToCart = () => {
-    if (!comboProduct) return;
-    // Validate selections
+  /** Valida que las selecciones cumplan min/max de cada línea del combo. */
+  const validateComboSelections = (): boolean => {
     for (const line of comboLines) {
       const selected = comboSelections[line.id] || [];
       if (line.required && selected.length < line.minSelect) {
         toast.error(`Selecciona al menos ${line.minSelect} opción en "${line.label}"`);
-        return;
+        return false;
       }
       if (selected.length > line.maxSelect) {
         toast.error(`Máximo ${line.maxSelect} opciones en "${line.label}"`);
-        return;
+        return false;
       }
     }
+    return true;
+  };
+
+  /** Convierte las selecciones del modal en la lista que viaja al backend. */
+  const buildComboSelections = (): Array<{ productId: string; productName: string; lineLabel: string }> => {
     const selections: Array<{ productId: string; productName: string; lineLabel: string }> = [];
     for (const line of comboLines) {
       const selected = comboSelections[line.id] || [];
@@ -325,6 +348,14 @@ export default function POSPage() {
         }
       }
     }
+    return selections;
+  };
+
+  const addComboToCart = () => {
+    if (!comboProduct) return;
+    // Validate selections
+    if (!validateComboSelections()) return;
+    const selections = buildComboSelections();
     setCart(prev => [
       // Cada combo agregado es un item SEPARADO (uid único): dos desayunos
       // pueden tener selecciones diferentes, no deben agruparse.
@@ -333,7 +364,68 @@ export default function POSPage() {
     ]);
     setShowComboModal(false);
     setComboProduct(null);
+    setEditingComboItem(null);
     toast.success(`${comboProduct.name} agregado con opciones`);
+  };
+
+  /** Confirma el modal de combo: guarda edición (PATCH) o agrega al carrito. */
+  const confirmComboAction = async () => {
+    if (editingComboItem) {
+      if (!comboProduct) return;
+      if (!validateComboSelections()) return;
+      const selections = buildComboSelections();
+      if (!currentOrder) return;
+      setSubmitting(true);
+      try {
+        const res = await api.patch<ApiResponse<Order>>(`/orders/${currentOrder.id}/items/${editingComboItem.id}`, {
+          quantity: editingQty,
+          comboSelections: selections,
+        });
+        if (res.success) {
+          toast.success('Combo actualizado');
+          setShowComboModal(false);
+          setEditingComboItem(null);
+          await refreshCurrentOrder(currentOrder.id);
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Error al actualizar');
+      } finally { setSubmitting(false); }
+      return;
+    }
+    addComboToCart();
+  };
+
+  /** Cambia la cantidad de un item YA en la orden (desde POS). */
+  const changeOrderItemQty = async (item: OrderItem, delta: number) => {
+    if (!currentOrder) return;
+    const qty = Math.max(1, item.quantity + delta);
+    if (qty === item.quantity) return;
+    setSubmitting(true);
+    try {
+      const res = await api.patch<ApiResponse<Order>>(`/orders/${currentOrder.id}/items/${item.id}`, { quantity: qty });
+      if (res.success) {
+        toast.success('Cantidad actualizada');
+        await refreshCurrentOrder(currentOrder.id);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al actualizar');
+    } finally { setSubmitting(false); }
+  };
+
+  /** Elimina un item de la orden (desde POS). */
+  const deleteOrderItem = async (item: OrderItem) => {
+    if (!currentOrder) return;
+    if (!confirm(`¿Eliminar "${item.product?.name}" del pedido?`)) return;
+    setSubmitting(true);
+    try {
+      const res = await api.delete<ApiResponse<Order>>(`/orders/${currentOrder.id}/items/${item.id}`);
+      if (res.success) {
+        toast.success('Producto eliminado');
+        await refreshCurrentOrder(currentOrder.id);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al eliminar');
+    } finally { setSubmitting(false); }
   };
 
   const toggleComboSelection = (lineId: string, productId: string, maxSelect: number) => {
@@ -753,10 +845,10 @@ export default function POSPage() {
             <div className="flex-1 flex flex-col min-w-0 min-h-0">
               <div className="mb-2">
                 <h3 className="text-sm font-semibold text-cocoa-900 mb-1.5">Productos actuales</h3>
-                <div className="bg-milk-50/80 rounded-xl border border-milk-200/70 p-3 text-xs space-y-1.5 max-h-24 overflow-y-auto">
+                <div className="bg-milk-50/80 rounded-xl border border-milk-200/70 p-3 text-xs space-y-1.5 max-h-40 overflow-y-auto">
                   {currentOrder?.items?.map(item => (
-                    <div key={item.id} className="flex justify-between text-cocoa-700 gap-2">
-                      <div className="min-w-0">
+                    <div key={item.id} className="flex justify-between items-center text-cocoa-700 gap-2 bg-white rounded-lg px-2 py-1.5 border border-milk-200/60">
+                      <div className="min-w-0 flex-1">
                         <span>{item.product?.name} <span className="text-cocoa-400">x{item.quantity}</span></span>
                         {item.comboItems && item.comboItems.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-0.5">
@@ -769,7 +861,25 @@ export default function POSPage() {
                           </div>
                         )}
                       </div>
-                      <span className="font-medium shrink-0">{formatCurrency(item.subtotal)}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {item.product?.category?.isCombo && (
+                          <button
+                            onClick={() => openComboSelector(item.product!, item)}
+                            disabled={submitting}
+                            className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"
+                            title="Editar elecciones del combo"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        )}
+                        <button onClick={() => changeOrderItemQty(item, -1)} disabled={submitting} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
+                        <span className="w-5 text-center font-semibold text-cocoa-800">{item.quantity}</span>
+                        <button onClick={() => changeOrderItemQty(item, 1)} disabled={submitting} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Plus size={12} /></button>
+                        <button onClick={() => deleteOrderItem(item)} disabled={submitting} className="flex h-6 w-6 items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors" title="Eliminar del pedido">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                      <span className="font-medium shrink-0 w-14 text-right">{formatCurrency(item.subtotal)}</span>
                     </div>
                   ))}
                   {(!currentOrder?.items || currentOrder.items.length === 0) && <p className="text-cocoa-300">Sin productos</p>}
@@ -854,7 +964,25 @@ export default function POSPage() {
                         </div>
                       )}
                     </div>
-                    <span className="text-sm font-semibold text-cocoa-900">{formatCurrency(item.subtotal)}</span>
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
+                      {item.product?.category?.isCombo && (
+                        <button
+                          onClick={() => openComboSelector(item.product!, item)}
+                          disabled={submitting}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"
+                          title="Editar elecciones del combo"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                      )}
+                      <button onClick={() => changeOrderItemQty(item, -1)} disabled={submitting} className="flex h-7 w-7 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
+                      <span className="w-6 text-center font-semibold text-cocoa-800 text-sm">{item.quantity}</span>
+                      <button onClick={() => changeOrderItemQty(item, 1)} disabled={submitting} className="flex h-7 w-7 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Plus size={12} /></button>
+                      <button onClick={() => deleteOrderItem(item)} disabled={submitting} className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors" title="Eliminar del pedido">
+                        <Trash2 size={13} />
+                      </button>
+                      <span className="text-sm font-semibold text-cocoa-900 w-16 text-right">{formatCurrency(item.subtotal)}</span>
+                    </div>
                   </div>
                 ))}
                 <div className="border-t border-milk-200 pt-3 mt-3 flex justify-between items-center">
@@ -1242,19 +1370,26 @@ export default function POSPage() {
             <div className="flex items-center justify-between border-b border-milk-200/70 px-6 py-4 shrink-0 bg-gradient-to-r from-milk-50/60 to-transparent rounded-t-3xl">
               <h2 className="text-base font-semibold text-cocoa-900 flex items-center gap-2.5">
                 <span className="h-5 w-1 rounded-full bg-gradient-to-b from-cocoa-500 to-cocoa-700" />
-                Personalizar {comboProduct.name}
+                {editingComboItem ? `Editar ${comboProduct.name}` : `Personalizar ${comboProduct.name}`}
               </h2>
-              <button onClick={() => setShowComboModal(false)} className="btn-ghost p-1.5 rounded-xl hover:bg-milk-100"><X size={18} /></button>
+              <button onClick={() => { setShowComboModal(false); setEditingComboItem(null); }} className="btn-ghost p-1.5 rounded-xl hover:bg-milk-100"><X size={18} /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
               <div className="flex items-center gap-3 rounded-xl bg-cocoa-50/50 border border-cocoa-200/60 p-3">
                 <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cocoa-500 to-cocoa-700 text-milk-50 font-bold shadow-md">
                   <Layers size={20} />
                 </span>
-                <div>
+                <div className="flex-1">
                   <p className="font-semibold text-cocoa-900">{comboProduct.name}</p>
                   <p className="text-sm font-bold text-cocoa-600">{formatCurrency(Number(comboProduct.price))}</p>
                 </div>
+                {editingComboItem && (
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={() => setEditingQty(q => Math.max(1, q - 1))} className="flex h-8 w-8 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={14} /></button>
+                    <span className="w-7 text-center font-bold text-cocoa-900">{editingQty}</span>
+                    <button onClick={() => setEditingQty(q => q + 1)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Plus size={14} /></button>
+                  </div>
+                )}
               </div>
 
               {comboLines.length === 0 && (
@@ -1330,9 +1465,11 @@ export default function POSPage() {
               ))}
             </div>
             <div className="border-t border-milk-200/70 px-6 py-4 shrink-0 flex gap-3">
-              <button onClick={() => setShowComboModal(false)} className="btn-secondary flex-1">Cancelar</button>
-              <button onClick={addComboToCart} className="btn-primary flex-1">
-                Agregar al pedido — {formatCurrency(Number(comboProduct.price))}
+              <button onClick={() => { setShowComboModal(false); setEditingComboItem(null); }} className="btn-secondary flex-1">Cancelar</button>
+              <button onClick={confirmComboAction} disabled={submitting} className="btn-primary flex-1">
+                {submitting ? 'Guardando...' : editingComboItem
+                  ? `Guardar cambios — ${formatCurrency(Number(comboProduct.price) * editingQty)}`
+                  : `Agregar al pedido — ${formatCurrency(Number(comboProduct.price))}`}
               </button>
             </div>
           </div>

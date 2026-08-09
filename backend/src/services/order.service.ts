@@ -4,7 +4,7 @@ import { inventoryRepository } from '../repositories/inventory.repository';
 import { branchRepository } from '../repositories/branch.repository';
 import { prisma } from '../config/database';
 import { AppError } from '../middlewares/errorHandler';
-import { CreateTableOrderInput, CreateTakeoutOrderInput, AddItemsToOrderInput, CloseOrderInput } from '../validators/order.validator';
+import { CreateTableOrderInput, CreateTakeoutOrderInput, AddItemsToOrderInput, UpdateOrderItemInput, CloseOrderInput } from '../validators/order.validator';
 import { startOfEcuadorDay, endOfEcuadorDay } from '../utils/date';
 
 export const orderService = {
@@ -38,6 +38,7 @@ export const orderService = {
    * Crea un pedido para llevar (sin mesa). Solo requiere nombre de cliente.
    */
   createTakeout: async (input: CreateTakeoutOrderInput, userId: string) => {
+    const total = input.items.reduce((s, i) => s + Number(i.subtotal), 0);
     const order = await prisma.order.create({
       data: {
         branchId: input.branchId,
@@ -45,16 +46,26 @@ export const orderService = {
         customerName: input.customerName,
         notes: input.notes,
         status: 'OPEN',
-        total: input.items.reduce((s, i) => s + Number(i.subtotal), 0),
-        items: { create: input.items.map(i => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice, subtotal: i.subtotal, sentToKitchen: false })) },
+        total,
       },
+    });
+    // createManyAndReturn preserva el orden de entrada (clave para mapear combos)
+    const orderItems = await prisma.orderItem.createManyAndReturn({
+      data: input.items.map(i => ({
+        orderId: order.id,
+        productId: i.productId,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        subtotal: i.subtotal,
+        sentToKitchen: false,
+      })),
     });
 
     // Create OrderItemCombo records
-    await createOrderItemCombos(order.id, input.items);
+    await createOrderItemCombos(order.id, input.items, orderItems);
 
     // Enviar a cocina productos que requieren preparación
-    await sendToKitchen(order.id, input.items);
+    await sendToKitchen(order.id, input.items, orderItems);
 
     return orderRepository.findById(order.id);
   },
@@ -65,7 +76,7 @@ export const orderService = {
     if (table.status !== 'FREE') throw new AppError('La mesa no está disponible');
 
     // Crear la orden
-    const order = await orderRepository.create({
+    const { order, items: orderItems } = await orderRepository.create({
       branchId: input.branchId,
       tableId: input.tableId,
       userId,
@@ -75,13 +86,13 @@ export const orderService = {
     });
 
     // Create OrderItemCombo records
-    await createOrderItemCombos(order.id, input.items);
+    await createOrderItemCombos(order.id, input.items, orderItems);
 
     // Marcar mesa como ocupada
     await tableRepository.updateStatus(input.tableId, 'OCCUPIED');
 
     // Enviar a cocina los productos que requieren preparación
-    await sendToKitchen(order.id, input.items);
+    await sendToKitchen(order.id, input.items, orderItems);
 
     return orderRepository.findById(order.id);
   },
@@ -98,10 +109,10 @@ export const orderService = {
     const createdItems = await orderRepository.addItems(orderId, input.items);
 
     // Create OrderItemCombo records
-    await createOrderItemCombos(orderId, input.items);
+    await createOrderItemCombos(orderId, input.items, createdItems);
 
     // Enviar a cocina solo los productos que requieren preparación
-    await sendToKitchen(orderId, input.items);
+    await sendToKitchen(orderId, input.items, createdItems);
 
     return orderRepository.findById(orderId);
   },
@@ -111,6 +122,85 @@ export const orderService = {
    */
   markKitchenReady: async (sendId: string) => {
     return orderRepository.markKitchenSendReady(sendId);
+  },
+
+  /**
+   * Edita un item de la orden (cantidad y/o selecciones de combo).
+   * Recalcula el total y sincroniza los envíos PENDING de cocina.
+   */
+  updateItem: async (orderId: string, itemId: string, input: UpdateOrderItemInput) => {
+    const order = await orderRepository.findById(orderId);
+    if (!order) throw new AppError('Pedido no encontrado', 404);
+    if (order.status !== 'OPEN') throw new AppError('El pedido ya está cerrado');
+    const item = order.items.find(i => i.id === itemId);
+    if (!item) throw new AppError('Producto no encontrado', 404);
+
+    const quantity = input.quantity ?? item.quantity;
+    const newSubtotal = Number(item.unitPrice) * quantity;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.orderItem.update({
+        where: { id: itemId },
+        data: { quantity, subtotal: newSubtotal },
+      });
+
+      if (input.comboSelections) {
+        await tx.orderItemCombo.deleteMany({ where: { orderItemId: itemId } });
+        for (const sel of input.comboSelections) {
+          await tx.orderItemCombo.create({
+            data: {
+              orderItemId: itemId,
+              productId: sel.productId,
+              productName: sel.productName,
+              quantity,
+              lineLabel: sel.lineLabel || null,
+            },
+          });
+        }
+      } else if (input.quantity && input.quantity !== item.quantity) {
+        // Si solo cambió la cantidad, actualizar las cantidades del desglose
+        await tx.orderItemCombo.updateMany({
+          where: { orderItemId: itemId },
+          data: { quantity },
+        });
+      }
+
+      // Recalcular total de la orden
+      const allItems = await tx.orderItem.findMany({ where: { orderId }, select: { subtotal: true } });
+      const total = allItems.reduce((s, i) => s + Number(i.subtotal), 0);
+      await tx.order.update({ where: { id: orderId }, data: { total } });
+    });
+
+    // Sincronizar cocina (envíos PENDING) fuera de la transacción principal
+    await orderRepository.syncKitchenItem(orderId, itemId, {
+      quantity,
+      ...(input.comboSelections ? { comboSelections: input.comboSelections } : {}),
+    });
+
+    return orderRepository.findById(orderId);
+  },
+
+  /**
+   * Elimina un item de la orden y lo quita de los envíos PENDING de cocina.
+   */
+  removeItem: async (orderId: string, itemId: string) => {
+    const order = await orderRepository.findById(orderId);
+    if (!order) throw new AppError('Pedido no encontrado', 404);
+    if (order.status !== 'OPEN') throw new AppError('El pedido ya está cerrado');
+    const item = order.items.find(i => i.id === itemId);
+    if (!item) throw new AppError('Producto no encontrado', 404);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.orderItem.delete({ where: { id: itemId } });
+      const allItems = await tx.orderItem.findMany({ where: { orderId }, select: { subtotal: true } });
+      const total = allItems.reduce((s, i) => s + Number(i.subtotal), 0);
+      await tx.order.update({ where: { id: orderId }, data: { total } });
+    });
+
+    // Quitar del envío pendiente de cocina (si quedó vacío se elimina)
+    await orderRepository.removeKitchenItem(orderId, itemId);
+
+    return orderRepository.findById(orderId);
   },
 
   /**
@@ -219,56 +309,53 @@ export const orderService = {
 
 /**
  * Crea registros OrderItemCombo para cada item que tenga comboSelections.
+ * Si se pasan los orderItems recién creados (createManyAndReturn preserva el
+ * orden de entrada), mapea por índice — así cada instancia de un mismo combo
+ * recibe SUS propias selecciones.
  */
-async function createOrderItemCombos(orderId: string, items: Array<{ productId: string; quantity: number; comboSelections?: Array<{ productId: string; productName: string; lineLabel?: string }> }>) {
+async function createOrderItemCombos(orderId: string, items: Array<{ productId: string; quantity: number; comboSelections?: Array<{ productId: string; productName: string; lineLabel?: string }> }>, createdItems?: Array<{ id: string; productId: string }>) {
   const itemsWithCombos = items.filter(i => i.comboSelections && i.comboSelections.length > 0);
   if (itemsWithCombos.length === 0) return;
 
-  // Fetch created order items to map them
-  const orderItems = await prisma.orderItem.findMany({
+  // Fallback: si no se pasaron los items creados, buscar los de la orden
+  const orderItems = createdItems ?? await prisma.orderItem.findMany({
     where: { orderId },
     orderBy: { id: 'asc' },
   });
 
   const used = new Set<string>();
-  for (const inputItem of itemsWithCombos) {
-    // Find first unmatched OrderItem with this productId
-    const orderItem = orderItems.find(oi => oi.productId === inputItem.productId && !used.has(oi.id));
-    if (!orderItem) continue;
+  for (let idx = 0; idx < items.length; idx++) {
+    const inputItem = items[idx];
+    if (!inputItem.comboSelections || inputItem.comboSelections.length === 0) continue;
+    // Con createdItems el índice es directo; en fallback, primer no usado
+    const orderItem = createdItems
+      ? orderItems[idx]
+      : orderItems.find(oi => oi.productId === inputItem.productId && !used.has(oi.id));
+    if (!orderItem || used.has(orderItem.id)) continue;
     used.add(orderItem.id);
 
-    for (const sel of inputItem.comboSelections!) {
-      // Check if OrderItemCombo already exists
-      const existing = await prisma.orderItemCombo.findFirst({
-        where: { orderItemId: orderItem.id, productId: sel.productId },
+    for (const sel of inputItem.comboSelections) {
+      await prisma.orderItemCombo.create({
+        data: {
+          orderItemId: orderItem.id,
+          productId: sel.productId,
+          productName: sel.productName,
+          // Si el desayuno/combo va xN, cada selección también va xN
+          quantity: inputItem.quantity,
+          lineLabel: sel.lineLabel || null,
+        },
       });
-      if (!existing) {
-        await prisma.orderItemCombo.create({
-          data: {
-            orderItemId: orderItem.id,
-            productId: sel.productId,
-            productName: sel.productName,
-            // Si el desayuno/combo va x2, cada selección también va x2
-            quantity: inputItem.quantity,
-            lineLabel: sel.lineLabel || null,
-          },
-        });
-      } else {
-        // Si ya existía (mismo combo agregado 2 veces), acumular la cantidad
-        await prisma.orderItemCombo.update({
-          where: { id: existing.id },
-          data: { quantity: existing.quantity + inputItem.quantity },
-        });
-      }
     }
   }
 }
 
 /**
  * Envía a cocina los productos que requieren preparación.
- * Crea un KitchenSend con los items y sus desgloses de combo.
+ * Si la orden ya tiene un envío PENDING (aún no marcado como listo), los items
+ * nuevos se agregan a ESE envío para no confundir a la cocina con tarjetas
+ * duplicadas. Solo si el envío anterior fue marcado como listo se crea uno nuevo.
  */
-async function sendToKitchen(orderId: string, items: Array<{ productId: string; quantity: number; comboSelections?: Array<{ productId: string; productName: string; lineLabel?: string }> }>) {
+async function sendToKitchen(orderId: string, items: Array<{ productId: string; quantity: number; comboSelections?: Array<{ productId: string; productName: string; lineLabel?: string }> }>, createdItems?: Array<{ id: string; productId: string }>) {
   const products = await prisma.product.findMany({
     where: { id: { in: items.map(i => i.productId) } },
     select: { id: true, requiresPreparation: true },
@@ -277,17 +364,27 @@ async function sendToKitchen(orderId: string, items: Array<{ productId: string; 
   const prepMap = new Map(products.map(p => [p.id, p.requiresPreparation]));
   // Cada item lleva sus propias selecciones de combo, así la cocina las
   // renderiza anidadas debajo de su combo padre.
-  const kitchenItems = items
-    .filter(i => prepMap.get(i.productId) !== false)
-    .map(i => ({
+  const kitchenItems: Array<{ productId: string; quantity: number; orderItemId?: string; comboSelections?: Array<{ productId: string; productName: string; quantity?: number; lineLabel?: string | null }> }> = [];
+  items.forEach((i, idx) => {
+    if (prepMap.get(i.productId) === false) return;
+    kitchenItems.push({
       productId: i.productId,
       quantity: i.quantity,
+      // Vincular con el OrderItem para poder sincronizar ediciones
+      ...(createdItems?.[idx]?.id ? { orderItemId: createdItems[idx].id } : {}),
       ...(i.comboSelections && i.comboSelections.length > 0
         ? { comboSelections: i.comboSelections.map(sel => ({ ...sel, quantity: i.quantity })) }
         : {}),
-    }));
+    });
+  });
 
   if (kitchenItems.length === 0) return;
 
-  await orderRepository.createKitchenSend(orderId, kitchenItems);
+  // Merge: si hay un envío pendiente, agregar ahí; si no, crear uno nuevo
+  const pending = await orderRepository.findPendingKitchenSend(orderId);
+  if (pending) {
+    await orderRepository.appendToKitchenSend(pending.id, kitchenItems);
+  } else {
+    await orderRepository.createKitchenSend(orderId, kitchenItems);
+  }
 }

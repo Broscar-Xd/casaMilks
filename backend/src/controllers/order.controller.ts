@@ -51,6 +51,20 @@ export const orderController = {
     } catch (error) { next(error); }
   },
 
+  updateItem: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const order = await orderService.updateItem(p(req.params, 'id'), p(req.params, 'itemId'), req.body);
+      res.json({ success: true, data: order });
+    } catch (error) { next(error); }
+  },
+
+  removeItem: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const order = await orderService.removeItem(p(req.params, 'id'), p(req.params, 'itemId'));
+      res.json({ success: true, data: order });
+    } catch (error) { next(error); }
+  },
+
   getKitchenSends: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { branchId } = req.query;

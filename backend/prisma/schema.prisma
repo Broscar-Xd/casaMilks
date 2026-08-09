@@ -427,7 +427,8 @@ model OrderItem {
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
 
-  comboItems OrderItemCombo[]
+  comboItems       OrderItemCombo[]
+  kitchenSendItems KitchenSendItem[]
 
   @@index([orderId])
   @@index([productId])
@@ -456,16 +457,19 @@ model KitchenSend {
 
 /// Items específicos de cada envío a cocina.
 model KitchenSendItem {
-  id        String @id @default(uuid())
-  sendId    String @map("send_id")
-  productId String @map("product_id")
-  quantity  Int
+  id          String  @id @default(uuid())
+  sendId      String  @map("send_id")
+  orderItemId String? @map("order_item_id")
+  productId   String  @map("product_id")
+  quantity    Int
 
   send       KitchenSend        @relation(fields: [sendId], references: [id], onDelete: Cascade)
+  orderItem  OrderItem?         @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
   product    Product            @relation(fields: [productId], references: [id])
   comboItems KitchenSendCombo[]
 
   @@index([sendId])
+  @@index([orderItemId])
   @@map("kitchen_send_items")
 }
 

@@ -1,14 +1,54 @@
 import { prisma } from '../config/database';
 
+type KitchenSendInputItem = {
+  productId: string;
+  quantity: number;
+  orderItemId?: string | null;
+  comboSelections?: Array<{ productId: string; productName: string; quantity?: number; lineLabel?: string | null }>;
+};
+
+const KITCHEN_SEND_INCLUDE = {
+  items: {
+    include: {
+      product: { include: { category: true } },
+      comboItems: { include: { product: { select: { id: true, name: true } } } },
+    },
+  },
+} as const;
+
+/** Crea los items de un envío y liga sus selecciones de combo al item padre. */
+async function createSendItems(tx: any, sendId: string, items: KitchenSendInputItem[]) {
+  const createdItems: Array<{ id: string }> = [];
+  for (const item of items) {
+    createdItems.push(await tx.kitchenSendItem.create({
+      data: { sendId, productId: item.productId, quantity: item.quantity, orderItemId: item.orderItemId || null },
+    }));
+  }
+  for (let idx = 0; idx < items.length; idx++) {
+    const item = items[idx];
+    if (!item.comboSelections || item.comboSelections.length === 0) continue;
+    await tx.kitchenSendCombo.createMany({
+      data: item.comboSelections.map(sel => ({
+        kitchenSendId: sendId,
+        kitchenSendItemId: createdItems[idx].id,
+        productId: sel.productId,
+        productName: sel.productName,
+        quantity: sel.quantity || item.quantity,
+        lineLabel: sel.lineLabel || null,
+      })),
+    });
+  }
+}
+
 export const orderRepository = {
   findById: (id: string) =>
     prisma.order.findUnique({
       where: { id },
       include: {
-        items: { include: { product: true, comboItems: true } },
+        items: { include: { product: { include: { category: true } }, comboItems: true } },
         payments: true,
         kitchenSends: {
-          include: { items: { include: { product: true } }, comboItems: true },
+          include: { items: { include: { product: { include: { category: true } } } }, comboItems: true },
           orderBy: { createdAt: 'desc' },
         },
         user: { select: { id: true, name: true } },
@@ -20,10 +60,10 @@ export const orderRepository = {
     prisma.order.findFirst({
       where: { tableId, status: { not: 'CLOSED' } },
       include: {
-        items: { include: { product: true, comboItems: true } },
+        items: { include: { product: { include: { category: true } }, comboItems: true } },
         payments: true,
         kitchenSends: {
-          include: { items: { include: { product: true } }, comboItems: true },
+          include: { items: { include: { product: { include: { category: true } } } }, comboItems: true },
           orderBy: { createdAt: 'desc' },
         },
       },
@@ -38,7 +78,7 @@ export const orderRepository = {
           : {}),
       },
       include: {
-        items: { include: { product: true, comboItems: true } },
+        items: { include: { product: { include: { category: true } }, comboItems: true } },
         payments: true,
         table: true,
         user: { select: { id: true, name: true } },
@@ -55,7 +95,7 @@ export const orderRepository = {
       include: {
         items: {
           include: {
-            product: true,
+            product: { include: { category: true } },
             comboItems: { include: { product: { select: { id: true, name: true } } } },
           },
         },
@@ -79,16 +119,21 @@ export const orderRepository = {
           notes: data.notes,
           status: 'OPEN',
           total,
-          items: { create: data.items.map(i => ({
-            productId: i.productId,
-            quantity: i.quantity,
-            unitPrice: i.unitPrice,
-            subtotal: i.subtotal,
-            sentToKitchen: false,
-          })) },
         },
       });
-      return order;
+      // Crear items uno a uno (createManyAndReturn preserva el orden de entrada,
+      // necesario para mapear combos y envíos a cocina correctamente)
+      const items = await tx.orderItem.createManyAndReturn({
+        data: data.items.map(i => ({
+          orderId: order.id,
+          productId: i.productId,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          subtotal: i.subtotal,
+          sentToKitchen: false,
+        })),
+      });
+      return { order, items };
     }),
 
   addItems: (orderId: string, items: Array<{ productId: string; quantity: number; unitPrice: number; subtotal: number }>) =>
@@ -106,45 +151,84 @@ export const orderRepository = {
       return created;
     }),
 
-  createKitchenSend: (orderId: string, items: Array<{ productId: string; quantity: number; comboSelections?: Array<{ productId: string; productName: string; quantity?: number; lineLabel?: string | null }> }>) =>
+  createKitchenSend: (orderId: string, items: KitchenSendInputItem[]) =>
     prisma.$transaction(async (tx) => {
       const send = await tx.kitchenSend.create({
         data: { orderId },
       });
-      // Crear items uno a uno para capturar sus IDs y ligar los combos a su item padre
-      const createdItems: Array<{ id: string }> = [];
-      for (const item of items) {
-        createdItems.push(await tx.kitchenSendItem.create({
-          data: { sendId: send.id, productId: item.productId, quantity: item.quantity },
-        }));
-      }
-      if (items.some(i => i.comboSelections && i.comboSelections.length > 0)) {
-        for (let idx = 0; idx < items.length; idx++) {
-          const item = items[idx];
-          if (!item.comboSelections || item.comboSelections.length === 0) continue;
+      await createSendItems(tx, send.id, items);
+      return tx.kitchenSend.findUnique({
+        where: { id: send.id },
+        include: KITCHEN_SEND_INCLUDE,
+      });
+    }),
+
+  /** Último envío PENDING de la orden (para agregar items nuevos al mismo envío). */
+  findPendingKitchenSend: (orderId: string) =>
+    prisma.kitchenSend.findFirst({
+      where: { orderId, status: 'PENDING' },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    }),
+
+  /** Agrega items a un envío de cocina YA EXISTENTE (no crea uno nuevo). */
+  appendToKitchenSend: (sendId: string, items: KitchenSendInputItem[]) =>
+    prisma.$transaction(async (tx) => {
+      await createSendItems(tx, sendId, items);
+      return tx.kitchenSend.findUnique({
+        where: { id: sendId },
+        include: KITCHEN_SEND_INCLUDE,
+      });
+    }),
+
+  /**
+   * Quita un item de los envíos PENDING de la orden (cuando se elimina de la
+   * orden). Si el envío queda vacío, se elimina.
+   */
+  removeKitchenItem: (orderId: string, orderItemId: string) =>
+    prisma.$transaction(async (tx) => {
+      const items = await tx.kitchenSendItem.findMany({
+        where: { orderItemId, send: { orderId, status: 'PENDING' } },
+        select: { id: true, sendId: true },
+      });
+      if (items.length === 0) return;
+      await tx.kitchenSendCombo.deleteMany({ where: { kitchenSendItemId: { in: items.map(i => i.id) } } });
+      await tx.kitchenSendItem.deleteMany({ where: { id: { in: items.map(i => i.id) } } });
+      // Envíos pendientes que quedaron vacíos ya no se muestran en cocina
+      const sendIds = [...new Set(items.map(i => i.sendId))];
+      await tx.kitchenSend.deleteMany({ where: { id: { in: sendIds }, items: { none: {} } } });
+    }),
+
+  /**
+   * Sincroniza cantidad y/o selecciones de combo de un item en los envíos
+   * PENDING de la orden (cuando se edita desde POS o cocina).
+   */
+  syncKitchenItem: (orderId: string, orderItemId: string, data: { quantity: number; comboSelections?: Array<{ productId: string; productName: string; lineLabel?: string | null }> }) =>
+    prisma.$transaction(async (tx) => {
+      const items = await tx.kitchenSendItem.findMany({
+        where: { orderItemId, send: { orderId, status: 'PENDING' } },
+        select: { id: true, sendId: true },
+      });
+      if (items.length === 0) return;
+      await tx.kitchenSendItem.updateMany({
+        where: { id: { in: items.map(i => i.id) } },
+        data: { quantity: data.quantity },
+      });
+      if (data.comboSelections) {
+        await tx.kitchenSendCombo.deleteMany({ where: { kitchenSendItemId: { in: items.map(i => i.id) } } });
+        for (const ki of items) {
           await tx.kitchenSendCombo.createMany({
-            data: item.comboSelections.map(sel => ({
-              kitchenSendId: send.id,
-              kitchenSendItemId: createdItems[idx].id,
+            data: data.comboSelections.map(sel => ({
+              kitchenSendId: ki.sendId,
+              kitchenSendItemId: ki.id,
               productId: sel.productId,
               productName: sel.productName,
-              quantity: sel.quantity || item.quantity,
+              quantity: data.quantity,
               lineLabel: sel.lineLabel || null,
             })),
           });
         }
       }
-      return tx.kitchenSend.findUnique({
-        where: { id: send.id },
-        include: {
-          items: {
-            include: {
-              product: true,
-              comboItems: { include: { product: { select: { id: true, name: true } } } },
-            },
-          },
-        },
-      });
     }),
 
   markKitchenSendReady: (sendId: string) =>
