@@ -393,8 +393,8 @@ export default function KitchenPage() {
                 {send.items.map(item => (
                   <div key={item.id} className="space-y-1">
                     <div className="flex items-center gap-2.5">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-cocoa-500 to-cocoa-700 text-sm font-bold text-milk-50 shadow-sm">{item.quantity}</span>
-                      <span className="text-xl font-medium text-cocoa-800 flex-1 min-w-0 truncate">{item.product?.name || 'Producto'}</span>
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cocoa-500 to-cocoa-700 text-sm font-bold text-milk-50 shadow-sm">{item.quantity}</span>
+                      <span className="text-xl font-medium leading-tight text-cocoa-800 flex-1 min-w-0 break-words">{item.product?.name || 'Producto'}</span>
                       <button
                         onClick={() => openEditItem(send, item)}
                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-milk-100 text-cocoa-500 hover:bg-milk-200 hover:text-cocoa-700 transition-colors"
