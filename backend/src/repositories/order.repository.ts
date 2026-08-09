@@ -200,6 +200,20 @@ export const orderRepository = {
     }),
 
   /**
+   * Elimina un item de cocina por su id (envíos viejos sin vínculo a la orden).
+   * Si el envío queda vacío, se elimina. Útil cuando el item de la orden ya no
+   * existe (eliminado antes) y solo queda la tarjeta vieja en cocina.
+   */
+  removeKitchenSendItemById: (sendItemId: string) =>
+    prisma.$transaction(async (tx) => {
+      const si = await tx.kitchenSendItem.findUnique({ where: { id: sendItemId }, select: { id: true, sendId: true } });
+      if (!si) return;
+      await tx.kitchenSendCombo.deleteMany({ where: { kitchenSendItemId: si.id } });
+      await tx.kitchenSendItem.delete({ where: { id: si.id } });
+      await tx.kitchenSend.deleteMany({ where: { id: si.sendId, items: { none: {} } } });
+    }),
+
+  /**
    * Sincroniza cantidad y/o selecciones de combo de un item en los envíos
    * PENDING de la orden (cuando se edita desde POS o cocina).
    */

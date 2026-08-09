@@ -194,21 +194,31 @@ export const orderService = {
     if (order.status !== 'OPEN') throw new AppError('El pedido ya está cerrado');
     // Resolver el OrderItem: se acepta el id del OrderItem o de un KitchenSendItem vinculado
     let item = order.items.find(i => i.id === itemId) ?? null;
+    let sendItemId: string | null = null;
     if (!item) {
       const sendItem = (order.kitchenSends ?? []).flatMap(s => s.items).find(ki => ki.id === itemId);
-      if (sendItem?.orderItemId) item = order.items.find(i => i.id === sendItem.orderItemId) ?? null;
+      if (sendItem) {
+        sendItemId = sendItem.id;
+        if (sendItem.orderItemId) item = order.items.find(i => i.id === sendItem.orderItemId) ?? null;
+      }
     }
-    if (!item) throw new AppError('Producto no encontrado', 404);
+    if (!item && !sendItemId) throw new AppError('Producto no encontrado', 404);
 
-    await prisma.$transaction(async (tx) => {
-      await tx.orderItem.delete({ where: { id: item.id } });
-      const allItems = await tx.orderItem.findMany({ where: { orderId }, select: { subtotal: true } });
-      const total = allItems.reduce((s, i) => s + Number(i.subtotal), 0);
-      await tx.order.update({ where: { id: orderId }, data: { total } });
-    });
+    if (item) {
+      await prisma.$transaction(async (tx) => {
+        await tx.orderItem.delete({ where: { id: item.id } });
+        const allItems = await tx.orderItem.findMany({ where: { orderId }, select: { subtotal: true } });
+        const total = allItems.reduce((s, i) => s + Number(i.subtotal), 0);
+        await tx.order.update({ where: { id: orderId }, data: { total } });
+      });
 
-    // Quitar del envío pendiente de cocina (si quedó vacío se elimina)
-    await orderRepository.removeKitchenItem(orderId, item.id);
+      // Quitar del envío pendiente de cocina (si quedó vacío se elimina)
+      await orderRepository.removeKitchenItem(orderId, item.id);
+    } else if (sendItemId) {
+      // El item de la orden ya no existe (se eliminó antes): solo quitar la
+      // tarjeta vieja de cocina para que no se confunda al personal
+      await orderRepository.removeKitchenSendItemById(sendItemId);
+    }
 
     return orderRepository.findById(orderId);
   },

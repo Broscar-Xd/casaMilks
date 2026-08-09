@@ -281,12 +281,11 @@ export default function KitchenPage() {
   const saveEditItem = async () => {
     const editing = editingItem;
     const orderId = editing?.send.order?.id;
-    const orderItemId = editing?.item.orderItemId;
-    if (!orderId || !orderItemId) {
-      toast.error('Este producto no se puede editar desde cocina (se envió antes de la actualización). Edítalo desde el POS.');
-      return;
-    }
+    if (!orderId) return;
     const { send, item } = editing;
+    // Si el envío es viejo (sin vínculo a la orden), el backend intenta resolver;
+    // si no puede, se muestra un aviso claro al usuario
+    const targetId = item.orderItemId || item.id;
     // Validar líneas requeridas
     for (const line of editLines) {
       const selected = editSelections[line.id] || [];
@@ -306,14 +305,17 @@ export default function KitchenPage() {
     try {
       const body: Record<string, unknown> = { quantity: editQty };
       if (editLines.length > 0) body.comboSelections = selections;
-      const res = await api.patch<ApiResponse<KitchenSend>>(`/orders/${orderId}/items/${orderItemId}`, body);
+      const res = await api.patch<ApiResponse<KitchenSend>>(`/orders/${orderId}/items/${targetId}`, body);
       if (res.success) {
         toast.success('Item actualizado');
         setEditingItem(null);
         fetchSends();
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al actualizar');
+      const msg = err instanceof Error ? err.message : 'Error al actualizar';
+      toast.error(msg === 'Producto no encontrado'
+        ? 'Este producto se envió antes de la actualización y no se puede editar desde cocina. Edítalo desde el POS.'
+        : msg);
     } finally { setEditLoading(false); }
   };
 
@@ -328,14 +330,16 @@ export default function KitchenPage() {
     if (!cd) return;
     const { send, item } = cd;
     const orderId = send.order?.id;
-    const orderItemId = item.orderItemId;
     setConfirmDelete(null);
-    if (!orderId || !orderItemId) {
-      toast.error('Este producto no se puede eliminar desde cocina (se envió antes de la actualización). Elimínalo desde el POS.');
+    if (!orderId) {
+      toast.error('No se pudo eliminar: pedido no encontrado');
       return;
     }
+    // Con orderItemId se elimina de la orden; sin él (envío viejo) el backend
+    // elimina igual la tarjeta de cocina si el producto ya no está en la orden
+    const targetId = item.orderItemId || item.id;
     try {
-      const res = await api.delete<ApiResponse<KitchenSend>>(`/orders/${orderId}/items/${orderItemId}`);
+      const res = await api.delete<ApiResponse<KitchenSend>>(`/orders/${orderId}/items/${targetId}`);
       if (res.success) {
         toast.success('Producto eliminado');
         fetchSends();
@@ -393,7 +397,7 @@ export default function KitchenPage() {
           <p className="text-base text-cocoa-300 mt-1">Los pedidos aparecerán aquí automáticamente</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {sends.map((send) => (
             <div key={send.id} className="card overflow-hidden hover:shadow-md hover:shadow-cocoa-900/10 transition-all duration-200 hover:-translate-y-0.5">
               {/* Header tipo ticket */}
