@@ -254,13 +254,15 @@ export default function POSPage() {
 
   // Mientras el modal de cierre esté abierto, refresca el estado de cocina
   // cada 4s para desbloquear el cobro cuando la cocina marque todo como listo.
+  // IMPORTANTE: solo actualiza kitchenPending; NO sobrescribe currentOrder,
+  // porque una respuesta vieja del polling podría "revivir" un item que el
+  // usuario acaba de eliminar (carrera de condiciones).
   useEffect(() => {
     if (!showCloseModal || !currentOrder) return;
     const interval = setInterval(async () => {
       try {
         const res = await api.get<ApiResponse<Order>>(`/orders/table/${currentOrder.tableId}`);
         if (res.success && res.data) {
-          setCurrentOrder(res.data);
           setKitchenPending(hasKitchenPending(res.data));
         }
       } catch { /* silent */ }

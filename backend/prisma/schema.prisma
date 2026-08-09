@@ -224,6 +224,7 @@ model OrderItemCombo {
   productName String   @map("product_name") // snapshot del nombre al momento de la venta
   quantity    Int      @default(1)
   lineLabel   String?  @map("line_label") // ej: "Bebida Caliente"
+  createdAt   DateTime @default(now()) @map("created_at")
 
   orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
   product   Product   @relation(fields: [productId], references: [id])
@@ -241,10 +242,11 @@ model KitchenSendCombo {
   productName       String   @map("product_name")
   quantity          Int      @default(1)
   lineLabel         String?  @map("line_label")
+  createdAt         DateTime @default(now()) @map("created_at")
 
-  kitchenSend     KitchenSend     @relation(fields: [kitchenSendId], references: [id], onDelete: Cascade)
+  kitchenSend     KitchenSend      @relation(fields: [kitchenSendId], references: [id], onDelete: Cascade)
   kitchenSendItem KitchenSendItem? @relation(fields: [kitchenSendItemId], references: [id], onDelete: Cascade)
-  product         Product         @relation(fields: [productId], references: [id])
+  product         Product          @relation(fields: [productId], references: [id])
 
   @@index([kitchenSendId])
   @@index([kitchenSendItemId])
@@ -423,6 +425,7 @@ model OrderItem {
   unitPrice Decimal @map("unit_price")
   subtotal  Decimal
   sentToKitchen Boolean @default(false) @map("sent_to_kitchen")
+  createdAt DateTime @default(now()) @map("created_at")
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
@@ -457,11 +460,12 @@ model KitchenSend {
 
 /// Items específicos de cada envío a cocina.
 model KitchenSendItem {
-  id          String  @id @default(uuid())
-  sendId      String  @map("send_id")
-  orderItemId String? @map("order_item_id")
-  productId   String  @map("product_id")
+  id          String   @id @default(uuid())
+  sendId      String   @map("send_id")
+  orderItemId String?  @map("order_item_id")
+  productId   String   @map("product_id")
   quantity    Int
+  createdAt   DateTime @default(now()) @map("created_at")
 
   send       KitchenSend        @relation(fields: [sendId], references: [id], onDelete: Cascade)
   orderItem  OrderItem?         @relation(fields: [orderItemId], references: [id], onDelete: SetNull)

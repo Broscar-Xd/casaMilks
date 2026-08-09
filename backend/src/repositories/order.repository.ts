@@ -9,9 +9,10 @@ type KitchenSendInputItem = {
 
 const KITCHEN_SEND_INCLUDE = {
   items: {
+    orderBy: { createdAt: 'asc' },
     include: {
       product: { include: { category: true } },
-      comboItems: { include: { product: { select: { id: true, name: true } } } },
+      comboItems: { orderBy: { createdAt: 'asc' }, include: { product: { select: { id: true, name: true } } } },
     },
   },
 } as const;
@@ -45,10 +46,10 @@ export const orderRepository = {
     prisma.order.findUnique({
       where: { id },
       include: {
-        items: { include: { product: { include: { category: true } }, comboItems: true } },
+        items: { orderBy: { createdAt: 'asc' }, include: { product: { include: { category: true } }, comboItems: { orderBy: { createdAt: 'asc' } } } },
         payments: true,
         kitchenSends: {
-          include: { items: { include: { product: { include: { category: true } } } }, comboItems: true },
+          include: { items: { orderBy: { createdAt: 'asc' }, include: { product: { include: { category: true } } } }, comboItems: true },
           orderBy: { createdAt: 'desc' },
         },
         user: { select: { id: true, name: true } },
@@ -60,10 +61,10 @@ export const orderRepository = {
     prisma.order.findFirst({
       where: { tableId, status: { not: 'CLOSED' } },
       include: {
-        items: { include: { product: { include: { category: true } }, comboItems: true } },
+        items: { orderBy: { createdAt: 'asc' }, include: { product: { include: { category: true } }, comboItems: { orderBy: { createdAt: 'asc' } } } },
         payments: true,
         kitchenSends: {
-          include: { items: { include: { product: { include: { category: true } } } }, comboItems: true },
+          include: { items: { orderBy: { createdAt: 'asc' }, include: { product: { include: { category: true } } } }, comboItems: true },
           orderBy: { createdAt: 'desc' },
         },
       },
@@ -78,7 +79,7 @@ export const orderRepository = {
           : {}),
       },
       include: {
-        items: { include: { product: { include: { category: true } }, comboItems: true } },
+        items: { orderBy: { createdAt: 'asc' }, include: { product: { include: { category: true } }, comboItems: { orderBy: { createdAt: 'asc' } } } },
         payments: true,
         table: true,
         user: { select: { id: true, name: true } },
@@ -94,9 +95,10 @@ export const orderRepository = {
       },
       include: {
         items: {
+          orderBy: { createdAt: 'asc' },
           include: {
             product: { include: { category: true } },
-            comboItems: { include: { product: { select: { id: true, name: true } } } },
+            comboItems: { orderBy: { createdAt: 'asc' }, include: { product: { select: { id: true, name: true } } } },
           },
         },
         order: { select: { id: true, tableId: true, table: { select: { name: true } }, notes: true, createdAt: true } },
