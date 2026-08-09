@@ -157,6 +157,10 @@ export default function KitchenPage() {
   const [alarm, setAlarm] = useState<{ key: number; label: string } | null>(null);
   // Referencia para detectar pedidos NUEVOS (campana solo cuando llega uno)
   const knownIds = useRef<Set<string>>(new Set());
+  // Contador de mutaciones: cada vez que se elimina/edita/marca listo se
+  // incrementa. fetchSends descarta cualquier respuesta lanzada ANTES de una
+  // mutación (evita que una respuesta vieja del polling "reviva" tarjetas).
+  const mutationRef = useRef(0);
 
   // La alarma visual desaparece sola a los 6s
   useEffect(() => {
@@ -184,8 +188,12 @@ export default function KitchenPage() {
 
   const fetchSends = useCallback(async () => {
     if (!currentBranch) return;
+    // Marca la versión de la petición: si ocurre una mutación mientras esta
+    // petición está en vuelo, su respuesta se descarta (data desactualizada)
+    const requestVersion = mutationRef.current;
     try {
       const res = await api.get<ApiResponse<KitchenSend[]>>(`/orders/kitchen?branchId=${currentBranch.id}`);
+      if (requestVersion !== mutationRef.current) return; // respuesta vieja: ignorar
       if (res.success && res.data) {
         // En la primera carga solo registramos los IDs (sin sonar la campana)
         const isFirstLoad = knownIds.current.size === 0;
@@ -219,6 +227,7 @@ export default function KitchenPage() {
   }, [fetchSends]);
 
   const markReady = async (sendId: string) => {
+    mutationRef.current++; // invalida respuestas de polling en vuelo
     try {
       const res = await api.patch<ApiResponse<KitchenSend>>(`/orders/kitchen/${sendId}/ready`);
       if (res.success) {
@@ -303,6 +312,7 @@ export default function KitchenPage() {
     }
     setEditLoading(true);
     try {
+      mutationRef.current++; // invalida respuestas de polling en vuelo
       const body: Record<string, unknown> = { quantity: editQty };
       if (editLines.length > 0) body.comboSelections = selections;
       const res = await api.patch<ApiResponse<KitchenSend>>(`/orders/${orderId}/items/${targetId}`, body);
@@ -339,6 +349,7 @@ export default function KitchenPage() {
     // elimina igual la tarjeta de cocina si el producto ya no está en la orden
     const targetId = item.orderItemId || item.id;
     try {
+      mutationRef.current++; // invalida respuestas de polling en vuelo
       const res = await api.delete<ApiResponse<KitchenSend>>(`/orders/${orderId}/items/${targetId}`);
       if (res.success) {
         toast.success('Producto eliminado');
