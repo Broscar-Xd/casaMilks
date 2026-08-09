@@ -420,15 +420,27 @@ export default function POSPage() {
   /** Ejecuta la eliminación confirmada en el modal. */
   const confirmDeleteOrderItem = async () => {
     if (!currentOrder || !confirmDeleteItem) return;
+    const orderId = currentOrder.id;
     const itemId = confirmDeleteItem.id;
     const itemName = confirmDeleteItem.product?.name || 'Producto';
     setConfirmDeleteItem(null);
     setSubmitting(true);
     try {
-      const res = await api.delete<ApiResponse<Order>>(`/orders/${currentOrder.id}/items/${itemId}`);
+      const res = await api.delete<ApiResponse<Order | null>>(`/orders/${orderId}/items/${itemId}`);
       if (res.success) {
-        toast.success(`"${itemName}" eliminado`);
-        await refreshCurrentOrder(currentOrder.id);
+        if (!res.data) {
+          // La orden quedó vacía y fue eliminada: cerrar modales y refrescar
+          toast.success('Pedido eliminado — la mesa quedó libre');
+          setCurrentOrder(null);
+          setShowCloseModal(false);
+          setShowAddItemsModal(false);
+          setSelectedTable(null);
+          fetchTables();
+          fetchTakeoutOrders();
+        } else {
+          toast.success(`"${itemName}" eliminado`);
+          await refreshCurrentOrder(orderId);
+        }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al eliminar');

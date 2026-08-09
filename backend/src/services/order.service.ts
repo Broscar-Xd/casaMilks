@@ -205,12 +205,35 @@ export const orderService = {
     if (!item && !sendItemId) throw new AppError('Producto no encontrado', 404);
 
     if (item) {
+      let orderDeleted = false;
       await prisma.$transaction(async (tx) => {
         await tx.orderItem.delete({ where: { id: item.id } });
-        const allItems = await tx.orderItem.findMany({ where: { orderId }, select: { subtotal: true } });
-        const total = allItems.reduce((s, i) => s + Number(i.subtotal), 0);
-        await tx.order.update({ where: { id: orderId }, data: { total } });
+        const remaining = await tx.orderItem.count({ where: { orderId } });
+        if (remaining === 0) {
+          // La orden quedó VACÍA: no hay nada que despachar → se elimina la
+          // orden (y sus envíos de cocina) para que desaparezcan las tarjetas.
+          // Si ya tiene factura electrónica emitida, no se elimina.
+          const receipt = await tx.electronicReceipt.findUnique({ where: { orderId } });
+          if (!receipt) {
+            await tx.kitchenSend.deleteMany({ where: { orderId } });
+            await tx.order.delete({ where: { id: orderId } });
+            orderDeleted = true;
+          }
+        } else {
+          // Recalcular total de la orden con los items restantes
+          const allItems = await tx.orderItem.findMany({ where: { orderId }, select: { subtotal: true } });
+          const total = allItems.reduce((s, i) => s + Number(i.subtotal), 0);
+          await tx.order.update({ where: { id: orderId }, data: { total } });
+        }
       });
+
+      if (orderDeleted) {
+        // Liberar la mesa si la orden era de mesa (ya no tiene pedido)
+        if (order.tableId) {
+          await tableRepository.updateStatus(order.tableId, 'FREE');
+        }
+        return null;
+      }
 
       // Quitar del envío pendiente de cocina (si quedó vacío se elimina)
       await orderRepository.removeKitchenItem(orderId, item.id);
