@@ -227,10 +227,13 @@ export default function KitchenPage() {
   }, [fetchSends]);
 
   const markReady = async (sendId: string) => {
-    mutationRef.current++; // invalida respuestas de polling en vuelo
+    mutationRef.current++; // invalida respuestas de polling lanzadas antes
     try {
       const res = await api.patch<ApiResponse<KitchenSend>>(`/orders/kitchen/${sendId}/ready`);
       if (res.success) {
+        mutationRef.current++; // invalida polls lanzados DURANTE el patch
+        // Optimista: quitar la tarjeta de inmediato
+        setSends(prev => prev.filter(s => s.id !== sendId));
         toast.success('Marcado como listo');
         fetchSends();
       }
@@ -312,11 +315,12 @@ export default function KitchenPage() {
     }
     setEditLoading(true);
     try {
-      mutationRef.current++; // invalida respuestas de polling en vuelo
+      mutationRef.current++; // invalida respuestas de polling lanzadas antes
       const body: Record<string, unknown> = { quantity: editQty };
       if (editLines.length > 0) body.comboSelections = selections;
       const res = await api.patch<ApiResponse<KitchenSend>>(`/orders/${orderId}/items/${targetId}`, body);
       if (res.success) {
+        mutationRef.current++; // invalida polls lanzados DURANTE el patch
         toast.success('Item actualizado');
         setEditingItem(null);
         fetchSends();
@@ -349,9 +353,15 @@ export default function KitchenPage() {
     // elimina igual la tarjeta de cocina si el producto ya no está en la orden
     const targetId = item.orderItemId || item.id;
     try {
-      mutationRef.current++; // invalida respuestas de polling en vuelo
+      mutationRef.current++; // invalida respuestas de polling lanzadas antes
       const res = await api.delete<ApiResponse<KitchenSend>>(`/orders/${orderId}/items/${targetId}`);
       if (res.success) {
+        mutationRef.current++; // invalida polls lanzados DURANTE el delete
+        // Optimista: quitar el item de inmediato (y la tarjeta si quedó vacía)
+        setSends(prev => prev
+          .map(s => s.id === send.id ? { ...s, items: s.items.filter(i => i.id !== item.id) } : s)
+          .filter(s => s.items.length > 0)
+        );
         toast.success('Producto eliminado');
         fetchSends();
       }
