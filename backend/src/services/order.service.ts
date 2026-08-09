@@ -205,6 +205,13 @@ export const orderService = {
     if (!item && !sendItemId) throw new AppError('Producto no encontrado', 404);
 
     if (item) {
+      // IMPORTANTE: quitar el item del envío PENDING de cocina ANTES de borrar
+      // el OrderItem. La FK kitchen_send_items.order_item_id tiene onDelete:
+      // SetNull → si se borra primero el OrderItem, el item de cocina queda
+      // huérfano (orderItemId = NULL) y la tarjeta "revive" en el siguiente
+      // poll de cocina.
+      await orderRepository.removeKitchenItem(orderId, item.id);
+
       let orderDeleted = false;
       await prisma.$transaction(async (tx) => {
         await tx.orderItem.delete({ where: { id: item.id } });
@@ -234,9 +241,6 @@ export const orderService = {
         }
         return null;
       }
-
-      // Quitar del envío pendiente de cocina (si quedó vacío se elimina)
-      await orderRepository.removeKitchenItem(orderId, item.id);
     } else if (sendItemId) {
       // El item de la orden ya no existe (se eliminó antes): solo quitar la
       // tarjeta vieja de cocina para que no se confunda al personal
