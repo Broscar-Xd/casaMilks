@@ -28,6 +28,7 @@ export interface KitchenSend {
 export interface KitchenSendItem {
   id: string;
   sendId: string;
+  orderItemId?: string | null;
   productId: string;
   quantity: number;
   product?: Product;

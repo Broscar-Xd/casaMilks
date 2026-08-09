@@ -132,7 +132,12 @@ export const orderService = {
     const order = await orderRepository.findById(orderId);
     if (!order) throw new AppError('Pedido no encontrado', 404);
     if (order.status !== 'OPEN') throw new AppError('El pedido ya está cerrado');
-    const item = order.items.find(i => i.id === itemId);
+    // Resolver el OrderItem: se acepta el id del OrderItem o de un KitchenSendItem vinculado
+    let item = order.items.find(i => i.id === itemId) ?? null;
+    if (!item) {
+      const sendItem = (order.kitchenSends ?? []).flatMap(s => s.items).find(ki => ki.id === itemId);
+      if (sendItem?.orderItemId) item = order.items.find(i => i.id === sendItem.orderItemId) ?? null;
+    }
     if (!item) throw new AppError('Producto no encontrado', 404);
 
     const quantity = input.quantity ?? item.quantity;
@@ -140,16 +145,16 @@ export const orderService = {
 
     await prisma.$transaction(async (tx) => {
       await tx.orderItem.update({
-        where: { id: itemId },
+        where: { id: item.id },
         data: { quantity, subtotal: newSubtotal },
       });
 
       if (input.comboSelections) {
-        await tx.orderItemCombo.deleteMany({ where: { orderItemId: itemId } });
+        await tx.orderItemCombo.deleteMany({ where: { orderItemId: item.id } });
         for (const sel of input.comboSelections) {
           await tx.orderItemCombo.create({
             data: {
-              orderItemId: itemId,
+              orderItemId: item.id,
               productId: sel.productId,
               productName: sel.productName,
               quantity,
@@ -160,7 +165,7 @@ export const orderService = {
       } else if (input.quantity && input.quantity !== item.quantity) {
         // Si solo cambió la cantidad, actualizar las cantidades del desglose
         await tx.orderItemCombo.updateMany({
-          where: { orderItemId: itemId },
+          where: { orderItemId: item.id },
           data: { quantity },
         });
       }
@@ -172,7 +177,7 @@ export const orderService = {
     });
 
     // Sincronizar cocina (envíos PENDING) fuera de la transacción principal
-    await orderRepository.syncKitchenItem(orderId, itemId, {
+    await orderRepository.syncKitchenItem(orderId, item.id, {
       quantity,
       ...(input.comboSelections ? { comboSelections: input.comboSelections } : {}),
     });
@@ -187,18 +192,23 @@ export const orderService = {
     const order = await orderRepository.findById(orderId);
     if (!order) throw new AppError('Pedido no encontrado', 404);
     if (order.status !== 'OPEN') throw new AppError('El pedido ya está cerrado');
-    const item = order.items.find(i => i.id === itemId);
+    // Resolver el OrderItem: se acepta el id del OrderItem o de un KitchenSendItem vinculado
+    let item = order.items.find(i => i.id === itemId) ?? null;
+    if (!item) {
+      const sendItem = (order.kitchenSends ?? []).flatMap(s => s.items).find(ki => ki.id === itemId);
+      if (sendItem?.orderItemId) item = order.items.find(i => i.id === sendItem.orderItemId) ?? null;
+    }
     if (!item) throw new AppError('Producto no encontrado', 404);
 
     await prisma.$transaction(async (tx) => {
-      await tx.orderItem.delete({ where: { id: itemId } });
+      await tx.orderItem.delete({ where: { id: item.id } });
       const allItems = await tx.orderItem.findMany({ where: { orderId }, select: { subtotal: true } });
       const total = allItems.reduce((s, i) => s + Number(i.subtotal), 0);
       await tx.order.update({ where: { id: orderId }, data: { total } });
     });
 
     // Quitar del envío pendiente de cocina (si quedó vacío se elimina)
-    await orderRepository.removeKitchenItem(orderId, itemId);
+    await orderRepository.removeKitchenItem(orderId, item.id);
 
     return orderRepository.findById(orderId);
   },

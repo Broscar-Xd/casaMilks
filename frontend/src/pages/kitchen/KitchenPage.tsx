@@ -236,6 +236,8 @@ export default function KitchenPage() {
   const [editLines, setEditLines] = useState<ComboLine[]>([]);
   const [editSelections, setEditSelections] = useState<Record<string, string[]>>({});
   const [editLoading, setEditLoading] = useState(false);
+  // Confirmación de eliminación (modal)
+  const [confirmDelete, setConfirmDelete] = useState<{ send: KitchenSend; item: KitchenSendItem } | null>(null);
 
   const openEditItem = async (send: KitchenSend, item: KitchenSendItem) => {
     setEditingItem({ send, item });
@@ -279,7 +281,11 @@ export default function KitchenPage() {
   const saveEditItem = async () => {
     const editing = editingItem;
     const orderId = editing?.send.order?.id;
-    if (!orderId) return;
+    const orderItemId = editing?.item.orderItemId;
+    if (!orderId || !orderItemId) {
+      toast.error('Este producto no se puede editar desde cocina (se envió antes de la actualización). Edítalo desde el POS.');
+      return;
+    }
     const { send, item } = editing;
     // Validar líneas requeridas
     for (const line of editLines) {
@@ -300,7 +306,7 @@ export default function KitchenPage() {
     try {
       const body: Record<string, unknown> = { quantity: editQty };
       if (editLines.length > 0) body.comboSelections = selections;
-      const res = await api.patch<ApiResponse<KitchenSend>>(`/orders/${orderId}/items/${item.id}`, body);
+      const res = await api.patch<ApiResponse<KitchenSend>>(`/orders/${orderId}/items/${orderItemId}`, body);
       if (res.success) {
         toast.success('Item actualizado');
         setEditingItem(null);
@@ -311,11 +317,25 @@ export default function KitchenPage() {
     } finally { setEditLoading(false); }
   };
 
-  const deleteSendItem = async (send: KitchenSend, item: KitchenSendItem) => {
-    if (!send.order?.id) return;
-    if (!confirm(`¿Eliminar "${item.product?.name}" del pedido?`)) return;
+  /** Abre el modal de confirmación para eliminar un item desde cocina. */
+  const askDeleteSendItem = (send: KitchenSend, item: KitchenSendItem) => {
+    setConfirmDelete({ send, item });
+  };
+
+  /** Ejecuta la eliminación confirmada en el modal. */
+  const confirmDeleteSendItem = async () => {
+    const cd = confirmDelete;
+    if (!cd) return;
+    const { send, item } = cd;
+    const orderId = send.order?.id;
+    const orderItemId = item.orderItemId;
+    setConfirmDelete(null);
+    if (!orderId || !orderItemId) {
+      toast.error('Este producto no se puede eliminar desde cocina (se envió antes de la actualización). Elimínalo desde el POS.');
+      return;
+    }
     try {
-      const res = await api.delete<ApiResponse<KitchenSend>>(`/orders/${send.order.id}/items/${item.id}`);
+      const res = await api.delete<ApiResponse<KitchenSend>>(`/orders/${orderId}/items/${orderItemId}`);
       if (res.success) {
         toast.success('Producto eliminado');
         fetchSends();
@@ -403,7 +423,7 @@ export default function KitchenPage() {
                         <Pencil size={15} />
                       </button>
                       <button
-                        onClick={() => deleteSendItem(send, item)}
+                        onClick={() => askDeleteSendItem(send, item)}
                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors"
                         title="Eliminar del pedido"
                       >
@@ -527,6 +547,35 @@ export default function KitchenPage() {
               <button onClick={() => setEditingItem(null)} className="btn-secondary flex-1">Cancelar</button>
               <button onClick={saveEditItem} disabled={editLoading} className="btn-primary flex-1">
                 {editLoading ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Confirmar eliminación de producto */}
+      {confirmDelete && (
+        <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
+          <div className="w-full max-w-sm modal-content mx-2 sm:mx-0 p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-500">
+                <Trash2 size={20} />
+              </span>
+              <div>
+                <h2 className="text-base font-semibold text-cocoa-900">Eliminar producto</h2>
+                <p className="text-xs text-cocoa-400">
+                  {confirmDelete.send.order?.table?.name || 'Para llevar'}
+                </p>
+              </div>
+            </div>
+            <p className="text-sm text-cocoa-600 leading-relaxed">
+              ¿Eliminar <span className="font-semibold text-cocoa-800">"{confirmDelete.item.product?.name || 'Producto'}"</span> del pedido?<br />
+              <span className="text-xs text-cocoa-400">Se quitará también de la cuenta y del total.</span>
+            </p>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setConfirmDelete(null)} className="btn-secondary flex-1">Cancelar</button>
+              <button onClick={confirmDeleteSendItem} className="flex-1 rounded-xl bg-red-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-600 transition-colors">
+                Eliminar
               </button>
             </div>
           </div>

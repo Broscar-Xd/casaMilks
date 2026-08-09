@@ -46,6 +46,8 @@ export default function POSPage() {
   // Modo edición: se está modificando un combo YA en el pedido
   const [editingComboItem, setEditingComboItem] = useState<OrderItem | null>(null);
   const [editingQty, setEditingQty] = useState(1);
+  // Confirmación de eliminación de item de la orden (modal)
+  const [confirmDeleteItem, setConfirmDeleteItem] = useState<OrderItem | null>(null);
 
   // Products and categories for ordering
   const [products, setProducts] = useState<Product[]>([]);
@@ -412,15 +414,20 @@ export default function POSPage() {
     } finally { setSubmitting(false); }
   };
 
-  /** Elimina un item de la orden (desde POS). */
-  const deleteOrderItem = async (item: OrderItem) => {
-    if (!currentOrder) return;
-    if (!confirm(`¿Eliminar "${item.product?.name}" del pedido?`)) return;
+  /** Abre el modal de confirmación para eliminar un item de la orden. */
+  const askDeleteOrderItem = (item: OrderItem) => setConfirmDeleteItem(item);
+
+  /** Ejecuta la eliminación confirmada en el modal. */
+  const confirmDeleteOrderItem = async () => {
+    if (!currentOrder || !confirmDeleteItem) return;
+    const itemId = confirmDeleteItem.id;
+    const itemName = confirmDeleteItem.product?.name || 'Producto';
+    setConfirmDeleteItem(null);
     setSubmitting(true);
     try {
-      const res = await api.delete<ApiResponse<Order>>(`/orders/${currentOrder.id}/items/${item.id}`);
+      const res = await api.delete<ApiResponse<Order>>(`/orders/${currentOrder.id}/items/${itemId}`);
       if (res.success) {
-        toast.success('Producto eliminado');
+        toast.success(`"${itemName}" eliminado`);
         await refreshCurrentOrder(currentOrder.id);
       }
     } catch (err) {
@@ -875,7 +882,7 @@ export default function POSPage() {
                         <button onClick={() => changeOrderItemQty(item, -1)} disabled={submitting} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
                         <span className="w-5 text-center font-semibold text-cocoa-800">{item.quantity}</span>
                         <button onClick={() => changeOrderItemQty(item, 1)} disabled={submitting} className="flex h-6 w-6 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Plus size={12} /></button>
-                        <button onClick={() => deleteOrderItem(item)} disabled={submitting} className="flex h-6 w-6 items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors" title="Eliminar del pedido">
+                        <button onClick={() => askDeleteOrderItem(item)} disabled={submitting} className="flex h-6 w-6 items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors" title="Eliminar del pedido">
                           <Trash2 size={12} />
                         </button>
                       </div>
@@ -978,7 +985,7 @@ export default function POSPage() {
                       <button onClick={() => changeOrderItemQty(item, -1)} disabled={submitting} className="flex h-7 w-7 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Minus size={12} /></button>
                       <span className="w-6 text-center font-semibold text-cocoa-800 text-sm">{item.quantity}</span>
                       <button onClick={() => changeOrderItemQty(item, 1)} disabled={submitting} className="flex h-7 w-7 items-center justify-center rounded-lg bg-milk-100 text-cocoa-600 hover:bg-milk-200 transition-colors"><Plus size={12} /></button>
-                      <button onClick={() => deleteOrderItem(item)} disabled={submitting} className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors" title="Eliminar del pedido">
+                      <button onClick={() => askDeleteOrderItem(item)} disabled={submitting} className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors" title="Eliminar del pedido">
                         <Trash2 size={13} />
                       </button>
                       <span className="text-sm font-semibold text-cocoa-900 w-16 text-right">{formatCurrency(item.subtotal)}</span>
@@ -1470,6 +1477,35 @@ export default function POSPage() {
                 {submitting ? 'Guardando...' : editingComboItem
                   ? `Guardar cambios — ${formatCurrency(Number(comboProduct.price) * editingQty)}`
                   : `Agregar al pedido — ${formatCurrency(Number(comboProduct.price))}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Confirmar eliminación de producto */}
+      {confirmDeleteItem && (
+        <div className="modal-overlay" onClick={() => setConfirmDeleteItem(null)}>
+          <div className="w-full max-w-sm modal-content mx-2 sm:mx-0 p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-500">
+                <Trash2 size={20} />
+              </span>
+              <div>
+                <h2 className="text-base font-semibold text-cocoa-900">Eliminar producto</h2>
+                <p className="text-xs text-cocoa-400">
+                  {selectedTable?.name || 'Para llevar'}
+                </p>
+              </div>
+            </div>
+            <p className="text-sm text-cocoa-600 leading-relaxed">
+              ¿Eliminar <span className="font-semibold text-cocoa-800">"{confirmDeleteItem.product?.name || 'Producto'}"</span> del pedido?<br />
+              <span className="text-xs text-cocoa-400">Se quitará también de la cuenta y del total.</span>
+            </p>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setConfirmDeleteItem(null)} className="btn-secondary flex-1">Cancelar</button>
+              <button onClick={confirmDeleteOrderItem} disabled={submitting} className="flex-1 rounded-xl bg-red-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-600 transition-colors">
+                Eliminar
               </button>
             </div>
           </div>
