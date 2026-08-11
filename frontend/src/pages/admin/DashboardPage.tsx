@@ -13,7 +13,6 @@ export default function DashboardPage() {
   const [lastClose, setLastClose] = useState<DailyClose | null>(null);
   const [supplierToday, setSupplierToday] = useState(0);
   const [supplierCashToday, setSupplierCashToday] = useState(0);
-  const [supplierTransferToday, setSupplierTransferToday] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,7 +32,6 @@ export default function DashboardPage() {
         if (supplierRes.success && supplierRes.data) {
           setSupplierToday(supplierRes.data.total);
           setSupplierCashToday(supplierRes.data.cashTotal);
-          setSupplierTransferToday(supplierRes.data.transferTotal);
         }
       } catch {
         // Silencioso
@@ -73,14 +71,8 @@ export default function DashboardPage() {
     }
     return totals;
   })();
-  // Efectivo vs No-efectivo (transferencia, tarjeta, deuna, panapay)
-  const cashSales = salesByMethod['CASH'] || 0;
-  const nonCashSales = Object.entries(salesByMethod)
-    .filter(([m]) => m !== 'CASH')
-    .reduce((s, [, v]) => s + v, 0);
-  // Valores netos por método
-  const netCash = cashSales - supplierCashToday;
-  const netTransfer = nonCashSales - supplierTransferToday;
+  // Neto en caja = Ventas de hoy (todos los métodos) − solo pagos a proveedores en EFECTIVO
+  const netoCaja = totalToday - supplierCashToday;
 
   // Pagos por método (sobre pedidos cerrados de hoy)
   const paymentsByMethod = (() => {
@@ -207,52 +199,31 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Valor Neto en EFECTIVO */}
+        {/* Neto en CAJA: Ventas de hoy − solo pagos a proveedores en efectivo */}
         <div className="kpi-card">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
               <Wallet size={18} />
             </div>
             <div>
-              <p className="text-xs text-surface-400 font-medium">Neto Efectivo</p>
-              <p className={`text-2xl font-semibold ${netCash < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                {formatCurrency(netCash)}
+              <p className="text-xs text-surface-400 font-medium">Neto Caja</p>
+              <p className={`text-2xl font-semibold ${netoCaja < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                {formatCurrency(netoCaja)}
               </p>
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-surface-100 space-y-1">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-surface-500">Ventas efectivo:</span>
-              <span className="font-semibold text-emerald-600">{formatCurrency(cashSales)}</span>
+              <span className="text-surface-500">Ventas hoy:</span>
+              <span className="font-semibold text-emerald-600">{formatCurrency(totalToday)}</span>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-surface-500">Proveedores efectivo:</span>
+              <span className="text-surface-500">Proveedores (efectivo):</span>
               <span className="font-semibold text-red-500">− {formatCurrency(supplierCashToday)}</span>
             </div>
-          </div>
-        </div>
-
-        {/* Valor Neto en TRANSFERENCIA (todo lo no-efectivo) */}
-        <div className="kpi-card">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-              <TrendingUp size={18} />
-            </div>
-            <div>
-              <p className="text-xs text-surface-400 font-medium">Neto Transferencia</p>
-              <p className={`text-2xl font-semibold ${netTransfer < 0 ? 'text-red-600' : 'text-blue-600'}`}>
-                {formatCurrency(netTransfer)}
-              </p>
-            </div>
-          </div>
-          <div className="mt-3 pt-3 border-t border-surface-100 space-y-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-surface-500">Ventas no efectivo:</span>
-              <span className="font-semibold text-blue-600">{formatCurrency(nonCashSales)}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-surface-500">Proveedores transferencia:</span>
-              <span className="font-semibold text-red-500">− {formatCurrency(supplierTransferToday)}</span>
+            <div className="flex items-center justify-between text-xs pt-1 border-t border-surface-100">
+              <span className="font-medium text-surface-600">Neto:</span>
+              <span className={`font-bold ${netoCaja < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(netoCaja)}</span>
             </div>
           </div>
         </div>
