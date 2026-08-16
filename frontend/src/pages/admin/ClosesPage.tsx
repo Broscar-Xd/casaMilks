@@ -57,7 +57,9 @@ export default function ClosesPage() {
         <button onClick={() => setShowNew(true)} className="btn-primary"><DollarSign size={18} /> Realizar Cierre</button>
       </div>
 
-      <div className="space-y-4">
+      {/* Lista con scroll interno: se ven ~2 cierres y el resto scrollea
+          dentro del contenedor (la página ya no se va hacia abajo) */}
+      <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1 pb-1">
         {closes.length === 0 ? (
           <div className="card p-12 text-center text-gray-400">
             <Receipt size={48} className="mx-auto mb-4" />

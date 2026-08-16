@@ -32,6 +32,11 @@ export const supplierRepository = {
       orderBy: { supplierName: 'asc' },
     }),
 
+  findById: (id: string) => prisma.supplierPayment.findUnique({ where: { id } }),
+
+  /** Elimina un pago a proveedor (para corregir registros digitados por error). */
+  remove: (id: string) => prisma.supplierPayment.delete({ where: { id } }),
+
   /** Suma el total pagado a proveedores en un rango de fechas (con desglose). */
   sumByDate: (branchId: string, dateFrom: Date, dateTo: Date) =>
     prisma.supplierPayment.aggregate({

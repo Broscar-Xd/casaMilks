@@ -265,19 +265,28 @@ export const orderRepository = {
       data: { status: 'CLOSED', total },
     }),
 
+  /**
+   * Cuenta pedidos CERRADOS del día. `date` ya es medianoche de Ecuador
+   * (startOfEcuadorDay, p.ej. 2026-08-16T00:00:00.000-05:00 = 05:00 UTC).
+   * ⚠️ NO usar setHours(): el servidor corre en UTC y setHours(0,0,0,0)
+   * correría la ventana 5h (19:00 del día anterior → 18:59 del día del cierre).
+   */
   countByBranchAndDate: (branchId: string, date: Date) => {
-    const start = new Date(date); start.setHours(0, 0, 0, 0);
-    const end = new Date(date); end.setHours(23, 59, 59, 999);
+    const start = new Date(date);
+    const end = new Date(date);
+    end.setDate(end.getDate() + 1); // día siguiente, misma hora Ecuador
     return prisma.order.count({
-      where: { branchId, createdAt: { gte: start, lte: end }, status: 'CLOSED' },
+      where: { branchId, createdAt: { gte: start, lt: end }, status: 'CLOSED' },
     });
   },
 
+  /** Suma de totales de pedidos CERRADOS del día (ver nota de countByBranchAndDate). */
   sumByBranchAndDate: (branchId: string, date: Date) => {
-    const start = new Date(date); start.setHours(0, 0, 0, 0);
-    const end = new Date(date); end.setHours(23, 59, 59, 999);
+    const start = new Date(date);
+    const end = new Date(date);
+    end.setDate(end.getDate() + 1);
     return prisma.order.aggregate({
-      where: { branchId, createdAt: { gte: start, lte: end }, status: 'CLOSED' },
+      where: { branchId, createdAt: { gte: start, lt: end }, status: 'CLOSED' },
       _sum: { total: true },
     });
   },

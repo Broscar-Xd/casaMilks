@@ -42,4 +42,11 @@ export const supplierService = {
   },
 
   listSuppliers: (branchId: string) => supplierRepository.listSuppliers(branchId),
+
+  /** Elimina un pago a proveedor (registro erróneo). */
+  remove: async (id: string) => {
+    const existing = await supplierRepository.findById(id);
+    if (!existing) throw new Error('Pago no encontrado');
+    return supplierRepository.remove(id);
+  },
 };

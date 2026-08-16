@@ -34,4 +34,12 @@ export const supplierController = {
       res.json({ success: true, data });
     } catch (error) { next(error); }
   },
+
+  /** DELETE /api/suppliers/:id — elimina un pago registrado por error */
+  remove: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      await supplierService.remove(req.params.id);
+      res.json({ success: true });
+    } catch (error) { next(error); }
+  },
 };

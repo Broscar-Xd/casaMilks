@@ -4,7 +4,7 @@ import { api } from '@/services/api';
 import { formatCurrency } from '@/lib/utils';
 import { todayLocalDate } from '@/lib/date';
 import toast from 'react-hot-toast';
-import { Plus, Search, Loader2, X, Download, Banknote, Smartphone } from 'lucide-react';
+import { Plus, Search, Loader2, X, Download, Banknote, Smartphone, Trash2 } from 'lucide-react';
 import { Pagination } from '@/components/ui/Pagination';
 import { usePagination } from '@/hooks/usePagination';
 import type { ApiResponse } from '@/types';
@@ -33,6 +33,9 @@ export default function SuppliersPage() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ supplierName: '', cashAmount: '', transferAmount: '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
+  // Confirmación de eliminación (modal)
+  const [confirmDelete, setConfirmDelete] = useState<SupplierPayment | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchPayments = useCallback(async () => {
     if (!currentBranch) return;
@@ -96,6 +99,25 @@ export default function SuppliersPage() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al registrar pago');
     } finally { setSubmitting(false); }
+  };
+
+  /** Elimina un pago confirmado en el modal. */
+  const confirmDeletePayment = async () => {
+    if (!confirmDelete) return;
+    const id = confirmDelete.id;
+    const name = confirmDelete.supplierName;
+    setConfirmDelete(null);
+    setDeleting(true);
+    try {
+      const res = await api.delete<ApiResponse<null>>(`/suppliers/${id}`);
+      if (res.success) {
+        toast.success(`Pago a "${name}" eliminado`);
+        fetchPayments();
+        fetchSuppliers();
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al eliminar');
+    } finally { setDeleting(false); }
   };
 
   const exportToExcel = async () => {
@@ -199,6 +221,7 @@ export default function SuppliersPage() {
                 <th className="table-header text-right">Total</th>
                 <th className="table-header text-right">Fecha</th>
                 <th className="table-header">Notas</th>
+                <th className="table-header text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-100">
@@ -216,6 +239,15 @@ export default function SuppliersPage() {
                     {new Date(p.createdAt).toLocaleString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </td>
                   <td className="table-cell text-surface-400 max-w-[200px] truncate">{p.notes || '—'}</td>
+                  <td className="table-cell text-right">
+                    <button
+                      onClick={() => setConfirmDelete(p)}
+                      className="flex h-8 w-8 ml-auto items-center justify-center rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors"
+                      title="Eliminar pago"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -277,6 +309,34 @@ export default function SuppliersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Confirmar eliminación de pago */}
+      {confirmDelete && (
+        <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
+          <div className="w-full max-w-sm modal-content mx-2 sm:mx-0 p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-500">
+                <Trash2 size={20} />
+              </span>
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Eliminar pago</h2>
+                <p className="text-xs text-gray-400">{new Date(confirmDelete.createdAt).toLocaleDateString('es-EC')}</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              ¿Eliminar el pago a <span className="font-semibold text-gray-900">"{confirmDelete.supplierName}"</span> por{' '}
+              <span className="font-semibold text-gray-900">{formatCurrency(Number(confirmDelete.total))}</span>?<br />
+              <span className="text-xs text-gray-400">Esta acción no se puede deshacer y afectará los totales del día.</span>
+            </p>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setConfirmDelete(null)} className="btn-secondary flex-1">Cancelar</button>
+              <button onClick={confirmDeletePayment} disabled={deleting} className="flex-1 rounded-xl bg-red-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-600 transition-colors">
+                {deleting ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
           </div>
         </div>
       )}
