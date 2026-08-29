@@ -3,7 +3,7 @@ import { useBranch } from '@/contexts/BranchContext';
 import { api } from '@/services/api';
 import { formatCurrency, getPaymentMethodLabel, getOrderStatusLabel } from '@/lib/utils';
 import toast from 'react-hot-toast';
-import { Search, Loader2, Eye, X, Filter, FileText } from 'lucide-react';
+import { Search, Loader2, Eye, X, Filter, FileText, Send } from 'lucide-react';
 import { Pagination } from '@/components/ui/Pagination';
 import { usePagination } from '@/hooks/usePagination';
 import type { Order, ApiResponse, PaymentMethod } from '@/types';
@@ -19,6 +19,10 @@ export default function OrdersHistoryPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  // Emisión de factura para órdenes cerradas sin comprobante
+  const [emitOrder, setEmitOrder] = useState<Order | null>(null);
+  const [emitForm, setEmitForm] = useState({ invoiceName: '', invoiceDocId: '', invoiceEmail: '', invoicePhone: '', invoiceAddress: 'Latacunga' });
+  const [emitting, setEmitting] = useState(false);
 
   // Carga todos los pedidos al iniciar
   const fetchOrders = useCallback(async () => {
@@ -80,6 +84,62 @@ export default function OrdersHistoryPage() {
       toast.error(err?.message || 'Error al descargar la nota de venta');
     }
   };
+
+  /** Abre el modal de emisión: si la orden ya tiene datos de cliente, emite directo. */
+  const openEmitInvoice = (order: Order) => {
+    setEmitOrder(order);
+    setEmitForm({
+      invoiceName: order.invoiceName || '',
+      invoiceDocId: order.invoiceDocId || '',
+      invoiceEmail: order.invoiceEmail || '',
+      invoicePhone: order.invoicePhone || '',
+      invoiceAddress: order.invoiceAddress || 'Latacunga',
+    });
+  };
+
+  /** Guarda los datos del cliente (si hace falta) y emite la factura al SRI. */
+  const emitInvoice = async () => {
+    if (!emitOrder) return;
+    if (!emitForm.invoiceName.trim() || !emitForm.invoiceDocId.trim()) {
+      toast.error('Nombre y cédula/RUC del cliente son requeridos');
+      return;
+    }
+    setEmitting(true);
+    try {
+      // 1. Guardar datos del cliente en la orden
+      await api.patch(`/orders/${emitOrder.id}/invoice`, {
+        invoiceName: emitForm.invoiceName.trim(),
+        invoiceDocId: emitForm.invoiceDocId.trim(),
+        invoiceEmail: emitForm.invoiceEmail.trim() || null,
+        invoicePhone: emitForm.invoicePhone.trim() || null,
+        invoiceAddress: emitForm.invoiceAddress.trim() || 'Latacunga',
+      });
+      // 2. Emitir contra el SRI
+      const res = await api.post<ApiResponse<any>>(`/orders/${emitOrder.id}/emit-invoice`);
+      if (res.success) {
+        if (res.data?.estado === 'AUTORIZADO') {
+          toast.success(`✅ Factura AUTORIZADA (sec ${res.data.sequential})`);
+        } else {
+          const msgs = (res.data?.mensajes || [])
+            .map((m: any) => `${m.mensaje}${m.informacionAdicional ? ' - ' + m.informacionAdicional : ''}`)
+            .join(' | ');
+          toast.error(`SRI: ${res.data?.estado || 'ERROR'}${msgs ? ' — ' + msgs : ''}`);
+        }
+        setEmitOrder(null);
+        fetchOrders();
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || err?.message || 'Error al emitir factura');
+    } finally {
+      setEmitting(false);
+    }
+  };
+
+  /** True si la orden puede emitir factura (cerrada, con datos, sin comprobante). */
+  const canEmitInvoice = (order: Order): boolean =>
+    order.status === 'CLOSED' &&
+    !!order.invoiceDocId &&
+    !order.electronicReceipt;
 
   const filtered = searchId
     ? orders.filter((o) => o.id.toLowerCase().includes(searchId.toLowerCase()))
@@ -200,6 +260,15 @@ export default function OrdersHistoryPage() {
                     </td>
                     <td className="table-cell text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {canEmitInvoice(order) && (
+                          <button
+                            onClick={() => openEmitInvoice(order)}
+                            className="btn-ghost p-1.5 rounded-lg hover:bg-emerald-50"
+                            title="Emitir factura electrónica (SRI)"
+                          >
+                            <Send size={16} className="text-emerald-600" />
+                          </button>
+                        )}
                         <button onClick={() => downloadNotaVenta(order.id)} className="btn-ghost p-1.5" title="Descargar nota de venta">
                           <FileText size={16} />
                         </button>
@@ -293,6 +362,62 @@ export default function OrdersHistoryPage() {
               <div className="flex gap-2 pt-2 border-t border-surface-100">
                 <button onClick={() => downloadNotaVenta(selectedOrder.id)} className="btn-secondary flex-1 text-sm py-2">
                   <FileText size={15} /> Descargar nota de venta
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Emitir factura electrónica */}
+      {emitOrder && (
+        <div className="modal-overlay" onClick={() => setEmitOrder(null)}>
+          <div className="w-full max-w-md modal-content mx-2 sm:mx-0" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-surface-100 px-6 py-4">
+              <div>
+                <h2 className="text-base font-semibold text-surface-900">Emitir Factura Electrónica</h2>
+                <p className="text-xs text-surface-400">
+                  Pedido #{emitOrder.id.slice(0, 8).toUpperCase()} — {formatCurrency(Number(emitOrder.total))}
+                </p>
+              </div>
+              <button onClick={() => setEmitOrder(null)} className="btn-ghost p-1.5"><X size={18} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-surface-500 bg-amber-50 border border-amber-200/60 rounded-lg px-3 py-2">
+                Esta venta ya fue cobrada pero su factura no se envió al SRI. Al emitirla se generará una nueva clave de acceso y secuencial, sin registrar otra venta.
+              </p>
+              <div>
+                <label className="label">Nombre del cliente *</label>
+                <input className="input" value={emitForm.invoiceName}
+                  onChange={(e) => setEmitForm({ ...emitForm, invoiceName: e.target.value })} placeholder="Nombre completo" />
+              </div>
+              <div>
+                <label className="label">Cédula / RUC *</label>
+                <input className="input" value={emitForm.invoiceDocId}
+                  onChange={(e) => setEmitForm({ ...emitForm, invoiceDocId: e.target.value.replace(/\D/g, '').slice(0, 13) })}
+                  placeholder="Cédula (10) o RUC (13)" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Email</label>
+                  <input className="input" value={emitForm.invoiceEmail}
+                    onChange={(e) => setEmitForm({ ...emitForm, invoiceEmail: e.target.value })} placeholder="opcional" />
+                </div>
+                <div>
+                  <label className="label">Teléfono</label>
+                  <input className="input" value={emitForm.invoicePhone}
+                    onChange={(e) => setEmitForm({ ...emitForm, invoicePhone: e.target.value })} placeholder="opcional" />
+                </div>
+              </div>
+              <div>
+                <label className="label">Dirección</label>
+                <input className="input" value={emitForm.invoiceAddress}
+                  onChange={(e) => setEmitForm({ ...emitForm, invoiceAddress: e.target.value })} />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setEmitOrder(null)} className="btn-secondary flex-1">Cancelar</button>
+                <button onClick={emitInvoice} disabled={emitting} className="btn-primary flex-1">
+                  {emitting ? 'Emitiendo...' : 'Emitir factura'}
                 </button>
               </div>
             </div>

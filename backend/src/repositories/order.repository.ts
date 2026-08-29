@@ -54,6 +54,7 @@ export const orderRepository = {
         },
         user: { select: { id: true, name: true } },
         table: true,
+        electronicReceipt: { select: { id: true, type: true, status: true, sequential: true, claveAcceso: true } },
       },
     }),
 
@@ -83,6 +84,7 @@ export const orderRepository = {
         payments: true,
         table: true,
         user: { select: { id: true, name: true } },
+        electronicReceipt: { select: { id: true, type: true, status: true, sequential: true, claveAcceso: true } },
       },
       orderBy: { createdAt: 'desc' },
     }),

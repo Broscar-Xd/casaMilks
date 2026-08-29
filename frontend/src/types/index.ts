@@ -196,6 +196,18 @@ export interface Order {
   user?: { id: string; name: string };
   table?: { id: string; name: string };
   kitchenSends?: KitchenSend[];
+  invoiceName?: string | null;
+  invoiceDocId?: string | null;
+  invoiceEmail?: string | null;
+  invoicePhone?: string | null;
+  invoiceAddress?: string | null;
+  electronicReceipt?: {
+    id: string;
+    type: string;
+    status: string;
+    sequential: number;
+    claveAcceso: string | null;
+  } | null;
 }
 
 /** True si la orden tiene envíos a cocina pendientes (PENDING). */
