@@ -26,18 +26,19 @@ export const branchRepository = {
       update: data,
     }),
 
+  /**
+   * Siguiente secuencial para un tipo de comprobante.
+   * ⚠️ ATOMICO: usa increment:1 (como el SRI). El patrón anterior
+   * (leer lastUsed → +1 → update) con dos peticiones concurrentes
+   * devolvía el MISMO secuencial → "Unique constraint failed".
+   */
   getNextSequential: async (branchId: string, year: number, type: string = 'NOTA_VENTA', tx?: any) => {
     const client = tx || prisma;
     const seq = await client.receiptSequence.upsert({
       where: { branchId_year_type: { branchId, year, type } },
-      create: { branchId, year, type, lastUsed: 0 },
-      update: {},
+      create: { branchId, year, type, lastUsed: 1 },
+      update: { lastUsed: { increment: 1 } },
     });
-    const next = seq.lastUsed + 1;
-    await client.receiptSequence.update({
-      where: { id: seq.id },
-      data: { lastUsed: next },
-    });
-    return next;
+    return seq.lastUsed;
   },
 };

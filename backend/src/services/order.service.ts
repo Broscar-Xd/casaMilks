@@ -297,6 +297,10 @@ export const orderService = {
       await tx.electronicReceipt.create({
         data: {
           orderId, branchId: order.branchId, sequential: seq,
+          // ⚠️ CRÍTICO: type explícito NOTA_VENTA. Antes se omitía y Prisma
+          // usaba el default 'FACTURA', ocupando los secuenciales de las
+          // facturas SRI y causando "Unique constraint failed" al emitir.
+          type: 'NOTA_VENTA',
           authorization: `CASAMILKS-${year}-${String(seq).padStart(9, '0')}`,
           status: 'EMITTED',
         },
