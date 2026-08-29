@@ -22,6 +22,8 @@ export default function ReceiptsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  // Filtro por tipo: por defecto solo FACTURAS (las notas de venta se ven con "Todas")
+  const [typeFilter, setTypeFilter] = useState('FACTURA');
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<ElectronicReceipt | null>(null);
 
@@ -41,6 +43,7 @@ export default function ReceiptsPage() {
   useEffect(() => { fetchReceipts(); }, [fetchReceipts]);
 
   const filtered = receipts.filter((r) => {
+    const matchType = typeFilter === 'ALL' || r.type === typeFilter;
     const matchStatus = statusFilter === 'ALL' || r.status === statusFilter;
     const q = search.toLowerCase();
     const matchSearch =
@@ -49,7 +52,7 @@ export default function ReceiptsPage() {
       (r.numeroAutorizacion || '').toLowerCase().includes(q) ||
       (r.order?.invoiceName || '').toLowerCase().includes(q) ||
       (r.order?.invoiceDocId || '').includes(q);
-    return matchStatus && matchSearch;
+    return matchType && matchStatus && matchSearch;
   });
 
   const { page, totalPages, total, pageSize, paginatedItems, setPage } = usePagination(filtered, 12);
@@ -101,7 +104,7 @@ export default function ReceiptsPage() {
     <div>
       <div className="mb-4">
         <h1 className="text-xl font-bold text-gray-900">Facturas Electrónicas</h1>
-        <p className="text-xs text-gray-500">{currentBranch.name} — {receipts.length} facturas</p>
+        <p className="text-xs text-gray-500">{currentBranch.name} — {filtered.length} comprobante{filtered.length !== 1 ? 's' : ''}</p>
       </div>
 
       {/* Filtros */}
@@ -114,6 +117,15 @@ export default function ReceiptsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          <select
+            className="input py-2 text-sm w-auto"
+            value={typeFilter}
+            onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+          >
+            <option value="FACTURA">Facturas</option>
+            <option value="NOTA_VENTA">Notas de Venta</option>
+            <option value="ALL">Todas</option>
+          </select>
           <select
             className="input py-2 text-sm w-auto"
             value={statusFilter}
@@ -142,6 +154,7 @@ export default function ReceiptsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-milk-200/70 bg-milk-50/50 text-left text-xs uppercase tracking-wide text-cocoa-400">
+                  <th className="px-4 py-3 font-semibold">Tipo</th>
                   <th className="px-4 py-3 font-semibold">Sec.</th>
                   <th className="px-4 py-3 font-semibold">Fecha</th>
                   <th className="px-4 py-3 font-semibold">Cliente</th>
@@ -157,6 +170,11 @@ export default function ReceiptsPage() {
                   const canResend = r.status === 'REJECTED' || r.status === 'EMITTED' || r.status === 'PENDING';
                   return (
                     <tr key={r.id} className="border-b border-milk-100 hover:bg-milk-50/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${r.type === 'FACTURA' ? 'bg-cocoa-100 text-cocoa-700' : 'bg-milk-200 text-cocoa-500'}`}>
+                          {r.type === 'FACTURA' ? 'Factura' : 'Nota de Venta'}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 font-mono text-xs text-cocoa-600">{String(r.sequential).padStart(9, '0')}</td>
                       <td className="px-4 py-3 text-cocoa-700">{new Date(r.createdAt).toLocaleString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                       <td className="px-4 py-3 font-medium text-cocoa-800">{r.order?.invoiceName || '—'}</td>
