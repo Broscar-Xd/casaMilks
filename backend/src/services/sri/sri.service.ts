@@ -138,6 +138,7 @@ export async function emitirFacturaElectronica(orderId: string): Promise<EmitInv
     update: {
       type: 'FACTURA',
       sequential,
+      authorization: `CASAMILKS-${sequential}`,
       claveAcceso,
       ambiente: AMBIENTE,
       xmlContent: xmlFirmado,

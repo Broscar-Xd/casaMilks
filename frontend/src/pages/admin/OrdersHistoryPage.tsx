@@ -135,11 +135,11 @@ export default function OrdersHistoryPage() {
     }
   };
 
-  /** True si la orden puede emitir factura (cerrada, con datos, sin comprobante). */
+  /** True si la orden puede emitir factura: cobrada y SIN factura SRI emitida.
+   *  Incluye órdenes con nota de venta (consumidor final) — al emitir, la
+   *  nota de venta se reemplaza por la factura electrónica. */
   const canEmitInvoice = (order: Order): boolean =>
-    order.status === 'CLOSED' &&
-    !!order.invoiceDocId &&
-    !order.electronicReceipt;
+    order.status === 'CLOSED' && order.electronicReceipt?.type !== 'FACTURA';
 
   const filtered = searchId
     ? orders.filter((o) => o.id.toLowerCase().includes(searchId.toLowerCase()))
@@ -384,7 +384,9 @@ export default function OrdersHistoryPage() {
             </div>
             <div className="p-6 space-y-4">
               <p className="text-xs text-surface-500 bg-amber-50 border border-amber-200/60 rounded-lg px-3 py-2">
-                Esta venta ya fue cobrada pero su factura no se envió al SRI. Al emitirla se generará una nueva clave de acceso y secuencial, sin registrar otra venta.
+                {emitOrder.electronicReceipt
+                  ? 'Esta venta tiene una nota de venta (consumidor final). Al emitir la factura, la nota de venta se reemplazará por la factura electrónica con su nueva clave de acceso y secuencial.'
+                  : 'Esta venta ya fue cobrada pero su factura no se envió al SRI. Al emitirla se generará una nueva clave de acceso y secuencial, sin registrar otra venta.'}
               </p>
               <div>
                 <label className="label">Nombre del cliente *</label>
