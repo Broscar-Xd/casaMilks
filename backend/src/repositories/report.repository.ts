@@ -76,8 +76,11 @@ export const reportRepository = {
       where: {
         order: {
           branchId,
-          createdAt: { gte: dateFrom, lte: dateTo },
-          status: { not: 'CANCELLED' },
+          // lt (no lte): dateTo es la medianoche del día siguiente en Ecuador;
+          // con lte se incluiría un pago exactamente a las 00:00:00.000 del
+          // día siguiente. Igual que count/sum: ventana [00:00, 24:00).
+          createdAt: { gte: dateFrom, lt: dateTo },
+          status: 'CLOSED',
         },
       },
       _sum: { amount: true },
