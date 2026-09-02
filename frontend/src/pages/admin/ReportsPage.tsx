@@ -52,7 +52,7 @@ export default function ReportsPage() {
       csv += 'VENTAS POR PRODUCTO\n';
       csv += `Producto${sep}Unidades Vendidas${sep}Total\n`;
       salesByProduct.forEach((s: any) => {
-        const name = s.productId || 'Desconocido';
+        const name = s.productName || s.productId || 'Desconocido';
         csv += `${name}${sep}${s._sum?.quantity || 0}${sep}${Number(s._sum?.subtotal || 0).toFixed(2)}\n`;
       });
 
@@ -135,11 +135,13 @@ export default function ReportsPage() {
             {salesByProduct.length === 0 ? (
               <p className="text-center text-surface-400 py-4">Sin datos para el período</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                 {salesByProduct.map((sale: any, idx: number) => (
-                  <div key={idx} className="flex items-center justify-between text-sm">
-                    <span className="text-surface-900">{sale.productId.slice(0, 8)}</span>
-                    <div className="flex gap-4">
+                  <div key={idx} className="flex items-center justify-between text-sm gap-3">
+                    <span className="text-surface-900 min-w-0 flex-1 truncate" title={sale.productName || sale.productId}>
+                      {sale.productName || sale.productId.slice(0, 8)}
+                    </span>
+                    <div className="flex gap-4 shrink-0">
                       <span className="text-surface-400">{sale._sum?.quantity || 0} und.</span>
                       <span className="font-medium">{formatCurrency(Number(sale._sum?.subtotal || 0))}</span>
                     </div>

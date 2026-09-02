@@ -19,8 +19,20 @@ function endOfDay(dateStr: string): Date {
 }
 
 export const reportService = {
-  salesByProduct: (branchId: string, dateFrom: string, dateTo: string) =>
-    reportRepository.salesByProduct(branchId, startOfDay(dateFrom), endOfDay(dateTo)),
+  /** Ventas por producto con el NOMBRE resuelto (groupBy no incluye relaciones). */
+  salesByProduct: async (branchId: string, dateFrom: string, dateTo: string) => {
+    const sales = await reportRepository.salesByProduct(branchId, startOfDay(dateFrom), endOfDay(dateTo));
+    const productIds = sales.map((s) => s.productId);
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true },
+    });
+    const productMap = new Map(products.map((p) => [p.id, p.name]));
+    return sales.map((s) => ({
+      ...s,
+      productName: productMap.get(s.productId) || 'Producto eliminado',
+    }));
+  },
 
   salesByTimeSlot: (branchId: string, date: string) =>
     reportRepository.salesByTimeSlot(branchId, startOfEcuadorDay(date), endOfEcuadorDay(date)),
