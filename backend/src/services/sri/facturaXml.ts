@@ -171,12 +171,17 @@ export function generarFacturaXML(p: FacturaParams): string {
       </pago>`)
     .join('');
 
-  const infoAdicional = `
-      <infoAdicional>
-        <campoAdicional nombre="Teléfono">${escapeXml(p.telefonoComprador || '')}</campoAdicional>
-        <campoAdicional nombre="Email">${escapeXml(p.emailComprador || '')}</campoAdicional>
-        ${p.direccionComprador ? `<campoAdicional nombre="Dirección">${escapeXml(p.direccionComprador)}</campoAdicional>` : ''}
-      </infoAdicional>`;
+  // ⚠️ El SRI rechaza <campoAdicional> con valor vacío (minLength 1).
+  // Solo se incluyen Teléfono/Email/Dirección si tienen contenido.
+  const camposAdicionales = [
+    p.telefonoComprador ? `<campoAdicional nombre="Teléfono">${escapeXml(p.telefonoComprador)}</campoAdicional>` : '',
+    p.emailComprador ? `<campoAdicional nombre="Email">${escapeXml(p.emailComprador)}</campoAdicional>` : '',
+    p.direccionComprador ? `<campoAdicional nombre="Dirección">${escapeXml(p.direccionComprador)}</campoAdicional>` : '',
+  ].filter(Boolean).join('\n        ');
+
+  const infoAdicional = camposAdicionales
+    ? `\n      <infoAdicional>\n        ${camposAdicionales}\n      </infoAdicional>`
+    : '';
 
   const importeTotal = totalSinImpuestos + Array.from(taxGroups.values()).reduce((s, g) => s + g.valor, 0);
 
