@@ -12,14 +12,18 @@ export const tableRepository = {
       },
       orderBy: { name: 'asc' },
     });
-    // Auto-reconciliación: Si una mesa tiene órdenes OPEN pero su estado en BD dice 'FREE',
-    // reportar 'OCCUPIED' para que el POS la muestre y sincronizar en background
+    // Auto-reconciliación bidireccional:
+    // 1) Si tiene órdenes OPEN pero dice 'FREE' -> reportar 'OCCUPIED' y sincronizar
+    // 2) Si NO tiene órdenes OPEN pero dice 'OCCUPIED' -> reportar 'FREE' y sincronizar
     return tables.map(t => {
       const hasOpen = t.orders && t.orders.length > 0;
       let status = t.status;
       if (hasOpen && t.status === 'FREE') {
         status = 'OCCUPIED';
         prisma.table.update({ where: { id: t.id }, data: { status: 'OCCUPIED' } }).catch(() => {});
+      } else if (!hasOpen && t.status === 'OCCUPIED') {
+        status = 'FREE';
+        prisma.table.update({ where: { id: t.id }, data: { status: 'FREE' } }).catch(() => {});
       }
       return {
         id: t.id,
