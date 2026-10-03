@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBranch } from '@/contexts/BranchContext';
 import { api } from '@/services/api';
 import { formatCurrency, getPaymentMethodLabel } from '@/lib/utils';
@@ -55,6 +55,7 @@ export default function POSPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   // Payment
   const [payments, setPayments] = useState<Array<{ method: PaymentMethod; amount: number; referenceNumber: string; cashReceived: number }>>([]);
@@ -379,6 +380,8 @@ export default function POSPage() {
       if (!validateComboSelections()) return;
       const selections = buildComboSelections();
       if (!currentOrder) return;
+      if (isSubmittingRef.current || submitting) return;
+      isSubmittingRef.current = true;
       setSubmitting(true);
       try {
         const res = await api.patch<ApiResponse<Order>>(`/orders/${currentOrder.id}/items/${editingComboItem.id}`, {
@@ -393,7 +396,10 @@ export default function POSPage() {
         }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Error al actualizar');
-      } finally { setSubmitting(false); }
+      } finally {
+        setSubmitting(false);
+        isSubmittingRef.current = false;
+      }
       return;
     }
     addComboToCart();
@@ -480,11 +486,13 @@ export default function POSPage() {
   const totalCart = cart.reduce((s, i) => s + i.subtotal, 0);
 
   const submitOrder = async () => {
+    if (isSubmittingRef.current || submitting) return;
     if ((!selectedTable && !isTakeout) || cart.length === 0 || !currentBranch) return;
     if (isTakeout && !customerNameInput.trim()) {
       toast.error('Nombre del cliente requerido');
       return;
     }
+    isSubmittingRef.current = true;
     setSubmitting(true);
     try {
       if (isTakeout) {
@@ -523,11 +531,16 @@ export default function POSPage() {
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al crear pedido');
-    } finally { setSubmitting(false); }
+    } finally {
+      setSubmitting(false);
+      isSubmittingRef.current = false;
+    }
   };
 
   const submitAddItems = async () => {
+    if (isSubmittingRef.current || submitting) return;
     if (!currentOrder || cart.length === 0) return;
+    isSubmittingRef.current = true;
     setSubmitting(true);
     try {
       const res = await api.post<ApiResponse<Order>>(`/orders/${currentOrder.id}/items`, {
@@ -541,10 +554,14 @@ export default function POSPage() {
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al agregar productos');
-    } finally { setSubmitting(false); }
+    } finally {
+      setSubmitting(false);
+      isSubmittingRef.current = false;
+    }
   };
 
   const submitClose = async () => {
+    if (isSubmittingRef.current || submitting) return;
     if (!currentOrder) return;
     const paymentTotal = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
     if (Math.abs(paymentTotal - Number(currentOrder.total)) > 0.01) {
@@ -557,6 +574,7 @@ export default function POSPage() {
         return;
       }
     }
+    isSubmittingRef.current = true;
     setSubmitting(true);
     try {
       const res = await api.post<ApiResponse<Order>>(`/orders/${currentOrder.id}/close`, {
@@ -586,7 +604,10 @@ export default function POSPage() {
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al cerrar venta');
-    } finally { setSubmitting(false); }
+    } finally {
+      setSubmitting(false);
+      isSubmittingRef.current = false;
+    }
   };
 
   const printReceipt = (order: any) => {

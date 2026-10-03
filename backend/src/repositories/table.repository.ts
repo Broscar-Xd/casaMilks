@@ -1,11 +1,37 @@
 import { prisma } from '../config/database';
 
 export const tableRepository = {
-  listByBranch: (branchId: string) =>
-    prisma.table.findMany({
+  listByBranch: async (branchId: string) => {
+    const tables = await prisma.table.findMany({
       where: { branchId },
+      include: {
+        orders: {
+          where: { status: 'OPEN' },
+          select: { id: true },
+        },
+      },
       orderBy: { name: 'asc' },
-    }),
+    });
+    // Auto-reconciliación: Si una mesa tiene órdenes OPEN pero su estado en BD dice 'FREE',
+    // reportar 'OCCUPIED' para que el POS la muestre y sincronizar en background
+    return tables.map(t => {
+      const hasOpen = t.orders && t.orders.length > 0;
+      let status = t.status;
+      if (hasOpen && t.status === 'FREE') {
+        status = 'OCCUPIED';
+        prisma.table.update({ where: { id: t.id }, data: { status: 'OCCUPIED' } }).catch(() => {});
+      }
+      return {
+        id: t.id,
+        branchId: t.branchId,
+        name: t.name,
+        status,
+        active: t.active,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      };
+    });
+  },
 
   findById: (id: string) =>
     prisma.table.findUnique({

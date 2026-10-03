@@ -71,11 +71,7 @@ export const orderService = {
   },
 
   create: async (input: CreateTableOrderInput, userId: string) => {
-    const table = await tableRepository.findById(input.tableId);
-    if (!table) throw new AppError('Mesa no encontrada', 404);
-    if (table.status !== 'FREE') throw new AppError('La mesa no está disponible');
-
-    // Crear la orden
+    // Crear la orden (valida atómicamente la mesa, previene órdenes dobles y marca OCCUPIED en la misma transacción)
     const { order, items: orderItems } = await orderRepository.create({
       branchId: input.branchId,
       tableId: input.tableId,
@@ -87,9 +83,6 @@ export const orderService = {
 
     // Create OrderItemCombo records
     await createOrderItemCombos(order.id, input.items, orderItems);
-
-    // Marcar mesa como ocupada
-    await tableRepository.updateStatus(input.tableId, 'OCCUPIED');
 
     // Enviar a cocina los productos que requieren preparación
     await sendToKitchen(order.id, input.items, orderItems);
@@ -306,7 +299,20 @@ export const orderService = {
         },
       });
       if (order.tableId) {
-        await tx.table.update({ where: { id: order.tableId }, data: { status: 'FREE' } });
+        // Verificar si quedan otras órdenes abiertas en la misma mesa antes de liberarla
+        const remainingOpen = await tx.order.count({
+          where: {
+            tableId: order.tableId,
+            status: 'OPEN',
+            id: { not: orderId },
+          },
+        });
+        if (remainingOpen === 0) {
+          await tx.table.update({ where: { id: order.tableId }, data: { status: 'FREE' } });
+        } else {
+          // Mantener la mesa como OCCUPIED si aún tiene cuentas pendientes
+          await tx.table.update({ where: { id: order.tableId }, data: { status: 'OCCUPIED' } });
+        }
       }
     });
 

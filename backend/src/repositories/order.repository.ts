@@ -1,4 +1,5 @@
 import { prisma } from '../config/database';
+import { AppError } from '../middlewares/errorHandler';
 
 type KitchenSendInputItem = {
   productId: string;
@@ -69,6 +70,7 @@ export const orderRepository = {
           orderBy: { createdAt: 'desc' },
         },
       },
+      orderBy: { createdAt: 'desc' },
     }),
 
   listByBranch: (branchId: string, dateFrom?: Date, dateTo?: Date) =>
@@ -113,6 +115,29 @@ export const orderRepository = {
     notes?: string | null; items: Array<{ productId: string; quantity: number; unitPrice: number; subtotal: number }>;
   }) =>
     prisma.$transaction(async (tx) => {
+      // 1. Verificación atómica de la mesa: debe existir y no tener otra orden OPEN
+      const table = await tx.table.findUnique({
+        where: { id: data.tableId },
+      });
+      if (!table) throw new AppError('Mesa no encontrada', 404);
+      if (table.status !== 'FREE') {
+        throw new AppError('La mesa no está disponible (ya se encuentra ocupada)', 409);
+      }
+
+      // Validar si ya existe una orden abierta para esta mesa (previene duplicaciones concurrentes)
+      const existingOpenOrder = await tx.order.findFirst({
+        where: { tableId: data.tableId, status: 'OPEN' },
+      });
+      if (existingOpenOrder) {
+        throw new AppError('La mesa ya tiene una orden abierta en curso', 409);
+      }
+
+      // 2. Marcar la mesa inmediatamente como OCCUPIED dentro de la misma transacción atómica
+      await tx.table.update({
+        where: { id: data.tableId },
+        data: { status: 'OCCUPIED' },
+      });
+
       const total = data.items.reduce((s, i) => s + Number(i.subtotal), 0);
       const order = await tx.order.create({
         data: {
