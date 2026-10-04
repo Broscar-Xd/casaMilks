@@ -98,7 +98,10 @@ export const orderService = {
    * Solo los productos nuevos se envían a cocina.
    */
   addItems: async (orderId: string, input: AddItemsToOrderInput) => {
-    const order = await orderRepository.findById(orderId);
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, status: true },
+    });
     if (!order) throw new AppError('Pedido no encontrado', 404);
     if (order.status !== 'OPEN') throw new AppError('El pedido ya está cerrado');
 
@@ -125,7 +128,16 @@ export const orderService = {
    * Recalcula el total y sincroniza los envíos PENDING de cocina.
    */
   updateItem: async (orderId: string, itemId: string, input: UpdateOrderItemInput) => {
-    const order = await orderRepository.findById(orderId);
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        status: true,
+        items: {
+          select: { id: true, quantity: true, unitPrice: true },
+        },
+      },
+    });
     if (!order) throw new AppError('Pedido no encontrado', 404);
     if (order.status !== 'OPEN') throw new AppError('El pedido ya está cerrado');
     // Resolver el OrderItem: se acepta el id del OrderItem o de un KitchenSendItem vinculado
