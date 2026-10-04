@@ -7,6 +7,9 @@ import { AppError } from '../middlewares/errorHandler';
 import { CreateTableOrderInput, CreateTakeoutOrderInput, AddItemsToOrderInput, UpdateOrderItemInput, CloseOrderInput } from '../validators/order.validator';
 import { startOfEcuadorDay, endOfEcuadorDay } from '../utils/date';
 
+/** Opciones de transacción para Prisma: eleva timeout a 20s y maxWait a 5s para evitar abortos por latencia de red */
+const TX_OPTIONS = { maxWait: 5000, timeout: 20000 } as const;
+
 export const orderService = {
   getById: async (id: string) => {
     const order = await orderRepository.findById(id);
@@ -167,7 +170,7 @@ export const orderService = {
       const allItems = await tx.orderItem.findMany({ where: { orderId }, select: { subtotal: true } });
       const total = allItems.reduce((s, i) => s + Number(i.subtotal), 0);
       await tx.order.update({ where: { id: orderId }, data: { total } });
-    });
+    }, TX_OPTIONS);
 
     // Sincronizar cocina (envíos PENDING) fuera de la transacción principal
     await orderRepository.syncKitchenItem(orderId, item.id, {
@@ -225,7 +228,7 @@ export const orderService = {
           const total = allItems.reduce((s, i) => s + Number(i.subtotal), 0);
           await tx.order.update({ where: { id: orderId }, data: { total } });
         }
-      });
+      }, TX_OPTIONS);
 
       if (orderDeleted) {
         // Liberar la mesa si la orden era de mesa (ya no tiene pedido)
@@ -268,16 +271,17 @@ export const orderService = {
     const seq = await branchRepository.getNextSequential(order.branchId, year);
 
     await prisma.$transaction(async (tx) => {
-      for (const p of input.payments) {
-        await tx.payment.create({
+      // Registrar pagos en paralelo
+      const paymentPromises = input.payments.map((p) =>
+        tx.payment.create({
           data: {
             orderId, method: p.method, amount: p.amount,
             referenceNumber: p.referenceNumber, cashReceived: p.cashReceived, cashChange: p.cashChange,
           },
-        });
-      }
+        })
+      );
 
-      // Update order with invoice data if provided, and close
+      // Preparar actualización de orden con datos de factura si aplica
       const updateData: any = { status: 'CLOSED' };
       if (input.invoice) {
         updateData.invoiceName = input.invoice.invoiceName;
@@ -286,18 +290,21 @@ export const orderService = {
         updateData.invoicePhone = input.invoice.invoicePhone || null;
         updateData.invoiceAddress = input.invoice.invoiceAddress || 'Latacunga';
       }
-      await tx.order.update({ where: { id: orderId }, data: updateData });
-      await tx.electronicReceipt.create({
+      const orderPromise = tx.order.update({ where: { id: orderId }, data: updateData });
+
+      // Preparar emisión de nota de venta
+      const receiptPromise = tx.electronicReceipt.create({
         data: {
           orderId, branchId: order.branchId, sequential: seq,
-          // ⚠️ CRÍTICO: type explícito NOTA_VENTA. Antes se omitía y Prisma
-          // usaba el default 'FACTURA', ocupando los secuenciales de las
-          // facturas SRI y causando "Unique constraint failed" al emitir.
           type: 'NOTA_VENTA',
           authorization: `CASAMILKS-${year}-${String(seq).padStart(9, '0')}`,
           status: 'EMITTED',
         },
       });
+
+      // Ejecutar escrituras principales en paralelo para reducir saltos de red
+      await Promise.all([...paymentPromises, orderPromise, receiptPromise]);
+
       if (order.tableId) {
         // Verificar si quedan otras órdenes abiertas en la misma mesa antes de liberarla
         const remainingOpen = await tx.order.count({
@@ -307,14 +314,12 @@ export const orderService = {
             id: { not: orderId },
           },
         });
-        if (remainingOpen === 0) {
-          await tx.table.update({ where: { id: order.tableId }, data: { status: 'FREE' } });
-        } else {
-          // Mantener la mesa como OCCUPIED si aún tiene cuentas pendientes
-          await tx.table.update({ where: { id: order.tableId }, data: { status: 'OCCUPIED' } });
-        }
+        await tx.table.update({
+          where: { id: order.tableId },
+          data: { status: remainingOpen === 0 ? 'FREE' : 'OCCUPIED' },
+        });
       }
-    });
+    }, TX_OPTIONS);
 
     // 2. Descontar inventario (fuera de transacción — operaciones lentas)
     const items = await prisma.orderItem.findMany({

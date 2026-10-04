@@ -1,6 +1,9 @@
 import { prisma } from '../config/database';
 import { AppError } from '../middlewares/errorHandler';
 
+/** Opciones de transacción para Prisma: eleva timeout a 20s y maxWait a 5s para evitar abortos por latencia de red */
+const TX_OPTIONS = { maxWait: 5000, timeout: 20000 } as const;
+
 type KitchenSendInputItem = {
   productId: string;
   quantity: number;
@@ -163,7 +166,7 @@ export const orderRepository = {
         })),
       });
       return { order, items };
-    }),
+    }, TX_OPTIONS),
 
   addItems: (orderId: string, items: Array<{ productId: string; quantity: number; unitPrice: number; subtotal: number }>) =>
     prisma.$transaction(async (tx) => {
@@ -178,7 +181,7 @@ export const orderRepository = {
         })),
       });
       return created;
-    }),
+    }, TX_OPTIONS),
 
   createKitchenSend: (orderId: string, items: KitchenSendInputItem[]) =>
     prisma.$transaction(async (tx) => {
@@ -190,7 +193,7 @@ export const orderRepository = {
         where: { id: send.id },
         include: KITCHEN_SEND_INCLUDE,
       });
-    }),
+    }, TX_OPTIONS),
 
   /** Último envío PENDING de la orden (para agregar items nuevos al mismo envío). */
   findPendingKitchenSend: (orderId: string) =>
@@ -208,7 +211,7 @@ export const orderRepository = {
         where: { id: sendId },
         include: KITCHEN_SEND_INCLUDE,
       });
-    }),
+    }, TX_OPTIONS),
 
   /**
    * Quita un item de los envíos PENDING de la orden (cuando se elimina de la
@@ -226,7 +229,7 @@ export const orderRepository = {
       // Envíos pendientes que quedaron vacíos ya no se muestran en cocina
       const sendIds = [...new Set(items.map(i => i.sendId))];
       await tx.kitchenSend.deleteMany({ where: { id: { in: sendIds }, items: { none: {} } } });
-    }),
+    }, TX_OPTIONS),
 
   /**
    * Elimina un item de cocina por su id (envíos viejos sin vínculo a la orden).
@@ -240,7 +243,7 @@ export const orderRepository = {
       await tx.kitchenSendCombo.deleteMany({ where: { kitchenSendItemId: si.id } });
       await tx.kitchenSendItem.delete({ where: { id: si.id } });
       await tx.kitchenSend.deleteMany({ where: { id: si.sendId, items: { none: {} } } });
-    }),
+    }, TX_OPTIONS),
 
   /**
    * Sincroniza cantidad y/o selecciones de combo de un item en los envíos
@@ -272,7 +275,7 @@ export const orderRepository = {
           });
         }
       }
-    }),
+    }, TX_OPTIONS),
 
   markKitchenSendReady: (sendId: string) =>
     prisma.kitchenSend.update({
