@@ -154,6 +154,10 @@ export default function POSPage() {
   const [customerNameInput, setCustomerNameInput] = useState('');
   const [notesInput, setNotesInput] = useState('');
 
+  // Evita peticiones solapadas: si una consulta tarda más que el intervalo,
+  // no se lanza otra encima (así no se acumulan en el servidor)
+  const pollingRef = useRef(false);
+
   const fetchTables = useCallback(async () => {
     if (!currentBranch) return;
     try {
@@ -166,7 +170,8 @@ export default function POSPage() {
   const fetchTakeoutOrders = useCallback(async () => {
     if (!currentBranch) return;
     try {
-      const res = await api.get<ApiResponse<Order[]>>(`/orders?branchId=${currentBranch.id}`);
+      // El filtro se aplica en el servidor: solo pedidos para llevar sin cerrar
+      const res = await api.get<ApiResponse<Order[]>>(`/orders?branchId=${currentBranch.id}&takeoutOpen=true`);
       if (res.success && res.data) {
         setTakeoutOrders(res.data.filter(o => !o.tableId && o.status !== 'CLOSED'));
       }
@@ -175,12 +180,17 @@ export default function POSPage() {
 
   useEffect(() => { fetchTables(); fetchTakeoutOrders(); }, [fetchTables, fetchTakeoutOrders]);
 
-  // Polling cada 5 segundos
+  // Polling cada 5 segundos (pausado con la pestaña oculta y sin solaparse)
   useEffect(() => {
     if (!currentBranch) return;
-    const interval = setInterval(() => {
-      fetchTables();
-      fetchTakeoutOrders();
+    const interval = setInterval(async () => {
+      if (document.hidden || pollingRef.current) return;
+      pollingRef.current = true;
+      try {
+        await Promise.all([fetchTables(), fetchTakeoutOrders()]);
+      } finally {
+        pollingRef.current = false;
+      }
     }, 5000);
     return () => clearInterval(interval);
   }, [fetchTables, fetchTakeoutOrders, currentBranch]);

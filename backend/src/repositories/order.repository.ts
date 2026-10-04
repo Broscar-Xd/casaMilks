@@ -92,13 +92,15 @@ export const orderRepository = {
       orderBy: { createdAt: 'desc' },
     }),
 
-  listByBranch: (branchId: string, dateFrom?: Date, dateTo?: Date) =>
+  listByBranch: (branchId: string, dateFrom?: Date, dateTo?: Date, takeoutOpen?: boolean) =>
     prisma.order.findMany({
       where: {
         branchId,
         ...(dateFrom || dateTo
           ? { createdAt: { ...(dateFrom ? { gte: dateFrom } : {}), ...(dateTo ? { lte: dateTo } : {}) } }
           : {}),
+        // Solo pedidos para llevar sin cerrar (lo que consulta el POS cada pocos segundos)
+        ...(takeoutOpen ? { tableId: null, status: { not: 'CLOSED' as const } } : {}),
       },
       include: {
         items: { orderBy: { createdAt: 'asc' }, include: { product: { include: { category: true } }, comboItems: { orderBy: { createdAt: 'asc' } } } },

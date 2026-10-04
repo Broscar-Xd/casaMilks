@@ -10,8 +10,8 @@ const p = (params: Record<string, string | string[]>, key: string): string =>
 export const orderController = {
   listByBranch: async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const { branchId, dateFrom, dateTo } = req.query;
-      const orders = await orderService.listByBranch(branchId as string, dateFrom as string, dateTo as string);
+      const { branchId, dateFrom, dateTo, takeoutOpen } = req.query;
+      const orders = await orderService.listByBranch(branchId as string, dateFrom as string, dateTo as string, takeoutOpen === 'true');
       res.json({ success: true, data: orders });
     } catch (error) { next(error); }
   },

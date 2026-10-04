@@ -22,13 +22,13 @@ export const orderService = {
     return order;
   },
 
-  listByBranch: (branchId: string, dateFrom?: string, dateTo?: string) => {
+  listByBranch: (branchId: string, dateFrom?: string, dateTo?: string, takeoutOpen?: boolean) => {
     // dateFrom → inicio del día (00:00:00.000) y dateTo → fin (23:59:59.999),
     // ambos en hora de Ecuador (UTC-5). Sin esto, filtrar por un día
     // excluye todo lo posterior a las 19:00 (server en UTC).
     const parsedDateFrom = dateFrom ? startOfEcuadorDay(dateFrom) : undefined;
     const parsedDateTo = dateTo ? endOfEcuadorDay(dateTo) : undefined;
-    return orderRepository.listByBranch(branchId, parsedDateFrom, parsedDateTo);
+    return orderRepository.listByBranch(branchId, parsedDateFrom, parsedDateTo, takeoutOpen);
   },
 
   getKitchenSends: (branchId: string) => orderRepository.getKitchenSends(branchId),
