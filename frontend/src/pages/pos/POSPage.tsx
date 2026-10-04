@@ -268,15 +268,19 @@ export default function POSPage() {
   // IMPORTANTE: solo actualiza kitchenPending; NO sobrescribe currentOrder,
   // porque una respuesta vieja del polling podría "revivir" un item que el
   // usuario acaba de eliminar (carrera de condiciones).
+  const closePollRef = useRef(false);
   useEffect(() => {
-    if (!showCloseModal || !currentOrder) return;
+    if (!showCloseModal || !currentOrder?.tableId) return;
     const interval = setInterval(async () => {
+      if (document.hidden || closePollRef.current) return;
+      closePollRef.current = true;
       try {
         const res = await api.get<ApiResponse<Order>>(`/orders/table/${currentOrder.tableId}`);
         if (res.success && res.data) {
           setKitchenPending(hasKitchenPending(res.data));
         }
       } catch { /* silent */ }
+      finally { closePollRef.current = false; }
     }, 4000);
     return () => clearInterval(interval);
   }, [showCloseModal, currentOrder?.id, currentOrder?.tableId]);
@@ -398,11 +402,12 @@ export default function POSPage() {
           quantity: editingQty,
           comboSelections: selections,
         });
-        if (res.success) {
+        if (res.success && res.data) {
           toast.success('Combo actualizado');
           setShowComboModal(false);
           setEditingComboItem(null);
-          await refreshCurrentOrder(currentOrder.id);
+          setCurrentOrder(res.data);
+          setKitchenPending(hasKitchenPending(res.data));
         }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Error al actualizar');
@@ -423,9 +428,10 @@ export default function POSPage() {
     setSubmitting(true);
     try {
       const res = await api.patch<ApiResponse<Order>>(`/orders/${currentOrder.id}/items/${item.id}`, { quantity: qty });
-      if (res.success) {
+      if (res.success && res.data) {
         toast.success('Cantidad actualizada');
-        await refreshCurrentOrder(currentOrder.id);
+        setCurrentOrder(res.data);
+        setKitchenPending(hasKitchenPending(res.data));
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al actualizar');
@@ -457,7 +463,8 @@ export default function POSPage() {
           fetchTakeoutOrders();
         } else {
           toast.success(`"${itemName}" eliminado`);
-          await refreshCurrentOrder(orderId);
+          setCurrentOrder(res.data);
+          setKitchenPending(hasKitchenPending(res.data));
         }
       }
     } catch (err) {

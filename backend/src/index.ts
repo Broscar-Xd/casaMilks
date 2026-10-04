@@ -1,5 +1,8 @@
 import app from './app';
 import { env } from './config/env';
+import { installPerfDiagnostics } from './utils/perf';
+
+installPerfDiagnostics();
 
 const start = () => {
   app.listen(env.port, () => {

@@ -20,12 +20,14 @@ import { signatureRoutes } from './routes/signature.routes';
 import { customerRoutes } from './routes/customer.routes';
 import { receiptRoutes } from './routes/receipt.routes';
 import { prisma } from './config/database';
+import { perfMiddleware } from './utils/perf';
 
 const app = express();
 
 // Middlewares globales
 app.use(cors());
 app.use(express.json());
+app.use(perfMiddleware);
 
 // Servir frontend compilado (en producción)
 const publicPath = path.join(__dirname, '../../frontend/dist');

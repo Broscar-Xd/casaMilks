@@ -14,19 +14,15 @@ type KitchenSendInputItem = {
 
 /** Crea los items de un envío y liga sus selecciones de combo al item padre de forma paralela y en lote. */
 async function createSendItems(tx: any, sendId: string, items: KitchenSendInputItem[]) {
-  // Crear todos los KitchenSendItem en paralelo
-  const createdItems = await Promise.all(
-    items.map(item =>
-      tx.kitchenSendItem.create({
-        data: {
-          sendId,
-          productId: item.productId,
-          quantity: item.quantity,
-          orderItemId: item.orderItemId || null,
-        },
-      })
-    )
-  );
+  // Crear todos los KitchenSendItem en una sola llamada SQL
+  const createdItems = await tx.kitchenSendItem.createManyAndReturn({
+    data: items.map(item => ({
+      sendId,
+      productId: item.productId,
+      quantity: item.quantity,
+      orderItemId: item.orderItemId || null,
+    })),
+  });
 
   // Recolectar todas las selecciones de combo de todos los items para un único batch insert
   const allCombos: Array<{
@@ -66,10 +62,16 @@ export const orderRepository = {
     prisma.order.findUnique({
       where: { id },
       include: {
-        items: { orderBy: { createdAt: 'asc' }, include: { product: { include: { category: true } }, comboItems: { orderBy: { createdAt: 'asc' } } } },
+        items: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            product: true,
+            comboItems: { orderBy: { createdAt: 'asc' } },
+          },
+        },
         payments: true,
         kitchenSends: {
-          include: { items: { orderBy: { createdAt: 'asc' }, include: { product: { include: { category: true } } } }, comboItems: true },
+          select: { id: true, status: true },
           orderBy: { createdAt: 'desc' },
         },
         user: { select: { id: true, name: true } },
@@ -82,10 +84,16 @@ export const orderRepository = {
     prisma.order.findFirst({
       where: { tableId, status: { not: 'CLOSED' } },
       include: {
-        items: { orderBy: { createdAt: 'asc' }, include: { product: { include: { category: true } }, comboItems: { orderBy: { createdAt: 'asc' } } } },
+        items: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            product: true,
+            comboItems: { orderBy: { createdAt: 'asc' } },
+          },
+        },
         payments: true,
         kitchenSends: {
-          include: { items: { orderBy: { createdAt: 'asc' }, include: { product: { include: { category: true } } } }, comboItems: true },
+          select: { id: true, status: true },
           orderBy: { createdAt: 'desc' },
         },
       },
