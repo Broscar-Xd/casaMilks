@@ -64,11 +64,11 @@ export const orderService = {
       })),
     });
 
-    // Create OrderItemCombo records
-    await createOrderItemCombos(order.id, input.items, orderItems);
-
-    // Enviar a cocina productos que requieren preparación
-    await sendToKitchen(order.id, input.items, orderItems);
+    // Crear combos y enviar a cocina en paralelo
+    await Promise.all([
+      createOrderItemCombos(order.id, input.items, orderItems),
+      sendToKitchen(order.id, input.items, orderItems),
+    ]);
 
     return orderRepository.findById(order.id);
   },
@@ -84,11 +84,11 @@ export const orderService = {
       items: input.items,
     });
 
-    // Create OrderItemCombo records
-    await createOrderItemCombos(order.id, input.items, orderItems);
-
-    // Enviar a cocina los productos que requieren preparación
-    await sendToKitchen(order.id, input.items, orderItems);
+    // Crear combos y enviar a cocina en paralelo
+    await Promise.all([
+      createOrderItemCombos(order.id, input.items, orderItems),
+      sendToKitchen(order.id, input.items, orderItems),
+    ]);
 
     return orderRepository.findById(order.id);
   },
@@ -104,11 +104,11 @@ export const orderService = {
 
     const createdItems = await orderRepository.addItems(orderId, input.items);
 
-    // Create OrderItemCombo records
-    await createOrderItemCombos(orderId, input.items, createdItems);
-
-    // Enviar a cocina solo los productos que requieren preparación
-    await sendToKitchen(orderId, input.items, createdItems);
+    // Crear combos y enviar a cocina en paralelo
+    await Promise.all([
+      createOrderItemCombos(orderId, input.items, createdItems),
+      sendToKitchen(orderId, input.items, createdItems),
+    ]);
 
     return orderRepository.findById(orderId);
   },
@@ -386,6 +386,14 @@ async function createOrderItemCombos(orderId: string, items: Array<{ productId: 
   });
 
   const used = new Set<string>();
+  const combosToCreate: Array<{
+    orderItemId: string;
+    productId: string;
+    productName: string;
+    quantity: number;
+    lineLabel: string | null;
+  }> = [];
+
   for (let idx = 0; idx < items.length; idx++) {
     const inputItem = items[idx];
     if (!inputItem.comboSelections || inputItem.comboSelections.length === 0) continue;
@@ -397,17 +405,21 @@ async function createOrderItemCombos(orderId: string, items: Array<{ productId: 
     used.add(orderItem.id);
 
     for (const sel of inputItem.comboSelections) {
-      await prisma.orderItemCombo.create({
-        data: {
-          orderItemId: orderItem.id,
-          productId: sel.productId,
-          productName: sel.productName,
-          // Si el desayuno/combo va xN, cada selección también va xN
-          quantity: inputItem.quantity,
-          lineLabel: sel.lineLabel || null,
-        },
+      combosToCreate.push({
+        orderItemId: orderItem.id,
+        productId: sel.productId,
+        productName: sel.productName,
+        // Si el desayuno/combo va xN, cada selección también va xN
+        quantity: inputItem.quantity,
+        lineLabel: sel.lineLabel || null,
       });
     }
+  }
+
+  if (combosToCreate.length > 0) {
+    await prisma.orderItemCombo.createMany({
+      data: combosToCreate,
+    });
   }
 }
 
@@ -418,10 +430,14 @@ async function createOrderItemCombos(orderId: string, items: Array<{ productId: 
  * duplicadas. Solo si el envío anterior fue marcado como listo se crea uno nuevo.
  */
 async function sendToKitchen(orderId: string, items: Array<{ productId: string; quantity: number; comboSelections?: Array<{ productId: string; productName: string; lineLabel?: string }> }>, createdItems?: Array<{ id: string; productId: string }>) {
-  const products = await prisma.product.findMany({
-    where: { id: { in: items.map(i => i.productId) } },
-    select: { id: true, requiresPreparation: true },
-  });
+  // Consultar en paralelo los productos y la existencia de envíos pendientes
+  const [products, pending] = await Promise.all([
+    prisma.product.findMany({
+      where: { id: { in: items.map(i => i.productId) } },
+      select: { id: true, requiresPreparation: true },
+    }),
+    orderRepository.findPendingKitchenSend(orderId),
+  ]);
 
   const prepMap = new Map(products.map(p => [p.id, p.requiresPreparation]));
   // Cada item lleva sus propias selecciones de combo, así la cocina las
@@ -443,7 +459,6 @@ async function sendToKitchen(orderId: string, items: Array<{ productId: string; 
   if (kitchenItems.length === 0) return;
 
   // Merge: si hay un envío pendiente, agregar ahí; si no, crear uno nuevo
-  const pending = await orderRepository.findPendingKitchenSend(orderId);
   if (pending) {
     await orderRepository.appendToKitchenSend(pending.id, kitchenItems);
   } else {

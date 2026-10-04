@@ -11,39 +11,55 @@ type KitchenSendInputItem = {
   comboSelections?: Array<{ productId: string; productName: string; quantity?: number; lineLabel?: string | null }>;
 };
 
-const KITCHEN_SEND_INCLUDE = {
-  items: {
-    orderBy: { createdAt: 'asc' },
-    include: {
-      product: { include: { category: true } },
-      comboItems: { orderBy: { createdAt: 'asc' }, include: { product: { select: { id: true, name: true } } } },
-    },
-  },
-} as const;
 
-/** Crea los items de un envío y liga sus selecciones de combo al item padre. */
+/** Crea los items de un envío y liga sus selecciones de combo al item padre de forma paralela y en lote. */
 async function createSendItems(tx: any, sendId: string, items: KitchenSendInputItem[]) {
-  const createdItems: Array<{ id: string }> = [];
-  for (const item of items) {
-    createdItems.push(await tx.kitchenSendItem.create({
-      data: { sendId, productId: item.productId, quantity: item.quantity, orderItemId: item.orderItemId || null },
-    }));
-  }
+  // Crear todos los KitchenSendItem en paralelo
+  const createdItems = await Promise.all(
+    items.map(item =>
+      tx.kitchenSendItem.create({
+        data: {
+          sendId,
+          productId: item.productId,
+          quantity: item.quantity,
+          orderItemId: item.orderItemId || null,
+        },
+      })
+    )
+  );
+
+  // Recolectar todas las selecciones de combo de todos los items para un único batch insert
+  const allCombos: Array<{
+    kitchenSendId: string;
+    kitchenSendItemId: string;
+    productId: string;
+    productName: string;
+    quantity: number;
+    lineLabel: string | null;
+  }> = [];
+
   for (let idx = 0; idx < items.length; idx++) {
     const item = items[idx];
     if (!item.comboSelections || item.comboSelections.length === 0) continue;
-    await tx.kitchenSendCombo.createMany({
-      data: item.comboSelections.map(sel => ({
+    for (const sel of item.comboSelections) {
+      allCombos.push({
         kitchenSendId: sendId,
         kitchenSendItemId: createdItems[idx].id,
         productId: sel.productId,
         productName: sel.productName,
         quantity: sel.quantity || item.quantity,
         lineLabel: sel.lineLabel || null,
-      })),
+      });
+    }
+  }
+
+  if (allCombos.length > 0) {
+    await tx.kitchenSendCombo.createMany({
+      data: allCombos,
     });
   }
 }
+
 
 export const orderRepository = {
   findById: (id: string) =>
@@ -189,10 +205,7 @@ export const orderRepository = {
         data: { orderId },
       });
       await createSendItems(tx, send.id, items);
-      return tx.kitchenSend.findUnique({
-        where: { id: send.id },
-        include: KITCHEN_SEND_INCLUDE,
-      });
+      return send;
     }, TX_OPTIONS),
 
   /** Último envío PENDING de la orden (para agregar items nuevos al mismo envío). */
@@ -207,10 +220,7 @@ export const orderRepository = {
   appendToKitchenSend: (sendId: string, items: KitchenSendInputItem[]) =>
     prisma.$transaction(async (tx) => {
       await createSendItems(tx, sendId, items);
-      return tx.kitchenSend.findUnique({
-        where: { id: sendId },
-        include: KITCHEN_SEND_INCLUDE,
-      });
+      return { id: sendId };
     }, TX_OPTIONS),
 
   /**
@@ -262,17 +272,18 @@ export const orderRepository = {
       });
       if (data.comboSelections) {
         await tx.kitchenSendCombo.deleteMany({ where: { kitchenSendItemId: { in: items.map(i => i.id) } } });
-        for (const ki of items) {
-          await tx.kitchenSendCombo.createMany({
-            data: data.comboSelections.map(sel => ({
-              kitchenSendId: ki.sendId,
-              kitchenSendItemId: ki.id,
-              productId: sel.productId,
-              productName: sel.productName,
-              quantity: data.quantity,
-              lineLabel: sel.lineLabel || null,
-            })),
-          });
+        const allCombos = items.flatMap(ki =>
+          (data.comboSelections || []).map(sel => ({
+            kitchenSendId: ki.sendId,
+            kitchenSendItemId: ki.id,
+            productId: sel.productId,
+            productName: sel.productName,
+            quantity: data.quantity,
+            lineLabel: sel.lineLabel || null,
+          }))
+        );
+        if (allCombos.length > 0) {
+          await tx.kitchenSendCombo.createMany({ data: allCombos });
         }
       }
     }, TX_OPTIONS),
