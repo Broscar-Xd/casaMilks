@@ -271,15 +271,17 @@ export const orderService = {
     const seq = await branchRepository.getNextSequential(order.branchId, year);
 
     await prisma.$transaction(async (tx) => {
-      // Registrar pagos en paralelo
-      const paymentPromises = input.payments.map((p) =>
-        tx.payment.create({
-          data: {
-            orderId, method: p.method, amount: p.amount,
-            referenceNumber: p.referenceNumber, cashReceived: p.cashReceived, cashChange: p.cashChange,
-          },
-        })
-      );
+      // Registrar pagos en lote
+      const paymentPromise = tx.payment.createMany({
+        data: input.payments.map((p) => ({
+          orderId,
+          method: p.method,
+          amount: p.amount,
+          referenceNumber: p.referenceNumber,
+          cashReceived: p.cashReceived,
+          cashChange: p.cashChange,
+        })),
+      });
 
       // Preparar actualización de orden con datos de factura si aplica
       const updateData: any = { status: 'CLOSED' };
@@ -303,7 +305,7 @@ export const orderService = {
       });
 
       // Ejecutar escrituras principales en paralelo para reducir saltos de red
-      await Promise.all([...paymentPromises, orderPromise, receiptPromise]);
+      await Promise.all([paymentPromise, orderPromise, receiptPromise]);
 
       if (order.tableId) {
         // Verificar si quedan otras órdenes abiertas en la misma mesa antes de liberarla
@@ -321,30 +323,10 @@ export const orderService = {
       }
     }, TX_OPTIONS);
 
-    // 2. Descontar inventario (fuera de transacción — operaciones lentas)
-    const items = await prisma.orderItem.findMany({
-      where: { orderId },
-      include: { product: { include: { recipes: true } } },
+    // 2. Descontar inventario en segundo plano de forma agrupada (no bloquea el cobro del POS)
+    deductInventory(orderId, order.branchId).catch((err) => {
+      console.error(`[deductInventory] Error al descontar inventario para orden ${orderId}:`, err);
     });
-
-    for (const item of items) {
-      for (const recipe of item.product.recipes) {
-        const qty = Number(recipe.quantity) * item.quantity;
-        const stock = await prisma.inventoryItem.findUnique({
-          where: { ingredientId_branchId: { ingredientId: recipe.ingredientId, branchId: order.branchId } },
-        });
-        if (stock) {
-          const newQty = Number(stock.quantity) - qty;
-          await prisma.inventoryItem.update({ where: { id: stock.id }, data: { quantity: Math.max(0, newQty) } });
-        }
-        await prisma.inventoryMovement.create({
-          data: {
-            ingredientId: recipe.ingredientId, branchId: order.branchId,
-            type: 'OUT', quantity: qty, reference: `Pedido #${orderId.slice(0, 8)}`, orderId,
-          },
-        });
-      }
-    }
 
     return prisma.order.findUnique({
       where: { id: orderId },
@@ -368,6 +350,78 @@ export const orderService = {
     });
   },
 };
+
+/**
+ * Descuenta del inventario los insumos de las recetas de los productos vendidos.
+ * Agrupa los consumos por insumo para realizar un único conjunto de consultas
+ * en lote y se ejecuta de forma asíncrona para no demorar la respuesta de cobro en POS.
+ */
+async function deductInventory(orderId: string, branchId: string) {
+  try {
+    const items = await prisma.orderItem.findMany({
+      where: { orderId },
+      include: { product: { include: { recipes: true } } },
+    });
+
+    const ingredientDeductions = new Map<string, number>();
+    for (const item of items) {
+      if (!item.product?.recipes) continue;
+      for (const recipe of item.product.recipes) {
+        const qty = Number(recipe.quantity) * item.quantity;
+        const current = ingredientDeductions.get(recipe.ingredientId) || 0;
+        ingredientDeductions.set(recipe.ingredientId, current + qty);
+      }
+    }
+
+    if (ingredientDeductions.size === 0) return;
+
+    const ingredientIds = Array.from(ingredientDeductions.keys());
+    const stockItems = await prisma.inventoryItem.findMany({
+      where: { branchId, ingredientId: { in: ingredientIds } },
+    });
+    const stockMap = new Map(stockItems.map(s => [s.ingredientId, s]));
+
+    const stockUpdates: Promise<any>[] = [];
+    const movementsData: Array<{
+      ingredientId: string;
+      branchId: string;
+      type: 'OUT';
+      quantity: number;
+      reference: string;
+      orderId: string;
+    }> = [];
+
+    for (const [ingredientId, qty] of ingredientDeductions.entries()) {
+      const stock = stockMap.get(ingredientId);
+      if (stock) {
+        const newQty = Math.max(0, Number(stock.quantity) - qty);
+        stockUpdates.push(
+          prisma.inventoryItem.update({
+            where: { id: stock.id },
+            data: { quantity: newQty },
+          })
+        );
+      }
+      movementsData.push({
+        ingredientId,
+        branchId,
+        type: 'OUT',
+        quantity: qty,
+        reference: `Pedido #${orderId.slice(0, 8)}`,
+        orderId,
+      });
+    }
+
+    await Promise.all([
+      Promise.all(stockUpdates),
+      movementsData.length > 0
+        ? prisma.inventoryMovement.createMany({ data: movementsData })
+        : Promise.resolve(),
+    ]);
+  } catch (error) {
+    console.error(`[deductInventory] Error al descontar inventario para orden ${orderId}:`, error);
+  }
+}
 
 /**
  * Crea registros OrderItemCombo para cada item que tenga comboSelections.
