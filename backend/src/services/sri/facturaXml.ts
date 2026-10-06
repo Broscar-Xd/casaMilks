@@ -103,6 +103,9 @@ function normalizarRimpe(legend: string | undefined): string | undefined {
   return 'CONTRIBUYENTE RÉGIMEN RIMPE';
 }
 
+/** RUC del emisor que se informa en los campos adicionales de la factura */
+const RUC_PROVEEDOR = '1150031852001';
+
 export function generarFacturaXML(p: FacturaParams): string {
   // Fecha SIEMPRE en zona horaria de Ecuador (el SRI valida contra su fecha local)
   const { dia, mes, anio } = fechaEcuador(p.fechaEmision);
@@ -177,6 +180,7 @@ export function generarFacturaXML(p: FacturaParams): string {
     p.telefonoComprador ? `<campoAdicional nombre="Teléfono">${escapeXml(p.telefonoComprador)}</campoAdicional>` : '',
     p.emailComprador ? `<campoAdicional nombre="Email">${escapeXml(p.emailComprador)}</campoAdicional>` : '',
     p.direccionComprador ? `<campoAdicional nombre="Dirección">${escapeXml(p.direccionComprador)}</campoAdicional>` : '',
+    `<campoAdicional nombre="RUC proveedor">${RUC_PROVEEDOR}</campoAdicional>`,
   ].filter(Boolean).join('\n        ');
 
   const infoAdicional = camposAdicionales
